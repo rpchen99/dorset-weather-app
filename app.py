@@ -27,3 +27,4 @@ if st.button("Get Forecast"):
     })
     st.subheader("Daily Highs/Lows")
     st.table(daily_df)
+
