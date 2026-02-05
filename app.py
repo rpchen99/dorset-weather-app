@@ -6,7 +6,16 @@ st.title("Dorset, VT 10-Day Forecast")
 
 # Dorset, VT Coordinates
 LAT, LON = 43.2548, -73.0973
-URL = f"https://api.open-meteo.com{LAT}&longitude={LON}&hourly=temperature_2m&daily=temperature_2m_max,temperature_2m_min&forecast_days=10&timezone=auto"
+
+# Cleaned URL with no spaces
+URL = f"https://api.open-meteo.com{LAT}&longitude={LON}&hourly=temperature_2m,precipitation_probability,snowfall&daily=temperature_2m_max,temperature_2m_min&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=auto&forecast_days=10"
+
+if st.button("Get Forecast"):
+    # Using a session to handle the connection more robustly
+    with requests.Session() as s:
+        response = s.get(URL.strip())
+        data = response.json()
+
 
 if st.button("Get Forecast"):
     data = requests.get(URL).json()
