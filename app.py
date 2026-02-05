@@ -6,43 +6,43 @@ st.set_page_config(page_title="Dorset Weather", layout="wide")
 st.title("Dorset, VT 10-Day Forecast")
 
 # --- NWS Alerts Section ---
+# --- Fixed NWS Alerts Section ---
 # Bennington County, VT (NWS County Code: VTC003)
 ALERTS_URL = "https://api.weather.gov"
 
+# 1. Use a unique User-Agent string (NWS requirement)
+headers = {
+    'User-Agent': '(myweatherapp.com, contact@email.com)', 
+    'Accept': 'application/geo+json'
+}
+
 try:
-    alerts_response = requests.get(ALERTS_URL, headers={'User-Agent': 'Dorset-Weather-App/1.0 (contact@example.com)'})
-    alerts_response.raise_for_status()
-    alerts_data = alerts_response.json()
+    alerts_response = requests.get(ALERTS_URL, headers=headers)
     
-    active_alerts = alerts_data.get('features', [])
+    # 2. Check if the request was actually successful (Status 200)
+    if alerts_response.status_code == 200:
+        alerts_data = alerts_response.json()
+        active_alerts = alerts_data.get('features', [])
 
-    if active_alerts:
-        # Use a red box (container) for visibility
-        with st.container(border=True): 
-            # Use st.expander for a clickable, collapsable box
-            with st.expander(f"⚠️ **ACTIVE NWS ALERTS ({len(active_alerts)})** ⚠️"):
-                for alert in active_alerts:
-                    props = alert.get('properties', {})
-                    headline = props.get('headline', 'No Headline')
-                    description = props.get('description', 'No description provided.')
-                    severity = props.get('severity', 'minor').capitalize()
-                    event = props.get('event', 'Weather Alert')
-                    
-                    st.markdown(f"### {event} ({severity})")
-                    st.warning(f"**{headline}**")
-                    st.markdown(description)
-                    st.divider()
+        if active_alerts:
+            with st.container(border=True): 
+                with st.expander(f"⚠️ **ACTIVE NWS ALERTS ({len(active_alerts)})** ⚠️"):
+                    for alert in active_alerts:
+                        props = alert.get('properties', {})
+                        st.markdown(f"### {props.get('event', 'Weather Alert')}")
+                        st.warning(f"**{props.get('headline')}**")
+                        st.write(props.get('description'))
+                        st.divider()
+        else:
+            st.success("✅ No active NWS weather alerts for Dorset, VT.")
     else:
-        # Green box if no alerts
-        with st.container(border=True):
-            st.success("✅ No active NWS weather alerts for Bennington County, VT.")
+        # If not 200, the API might be down or blocking the request
+        st.info(f"NWS Alert service currently unavailable (Status: {alerts_response.status_code})")
 
-except requests.exceptions.RequestException as e:
-    st.error(f"Error fetching NWS alerts: {e}")
 except Exception as e:
-    st.error(f"An unexpected error occurred with alerts: {e}")
+    # This prevents the whole app from crashing if the alert service fails
+    st.info("Note: Could not load weather alerts at this time.")
 
-st.divider() # Separates the alerts from the main weather data
 
 # --- Main Weather Forecast Section (The original code) ---
 BASE_URL = "https://api.open-meteo.com"
