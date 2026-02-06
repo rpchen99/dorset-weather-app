@@ -16,42 +16,31 @@ WMO_CODES = {
     95: "🌩 Thunderstorm"
 }
 
-# 1. FIXED URL (Added /v1/forecast)
-BASE_URL = "https://api.open-meteo.com"
-params = {
-    "latitude": 43.2548,
-    "longitude": -73.0973,
-    "hourly": "temperature_2m,weather_code",
-    "daily": "weather_code,temperature_2m_max,temperature_2m_min",
-    "temperature_unit": "fahrenheit",
-    "wind_speed_unit": "mph",
-    "precipitation_unit": "inch",
-    "timezone": "auto",
-    "forecast_days": 10
-}
+# 1. HARDCODED CORRECT ENDPOINT
+# This ensures /v1/forecast is always included
+FULL_URL = "https://api.open-meteo.com"
 
 try:
-    response = requests.get(BASE_URL, params=params)
+    response = requests.get(FULL_URL)
     response.raise_for_status()
     data = response.json()
 
     # --- CURRENT CONDITIONS ---
-    # Find the data point closest to the current hour
+    # Find the hour that matches right now
     current_time_str = datetime.now().strftime('%Y-%m-%dT%H:00')
     hourly_times = data["hourly"]["time"]
     
-    # Simple index find for current hour
     try:
         idx = hourly_times.index(current_time_str)
     except ValueError:
-        idx = 0 # Fallback to first hour if mismatch
+        idx = 0 
         
     current_temp = data["hourly"]["temperature_2m"][idx]
     current_condition = WMO_CODES.get(data["hourly"]["weather_code"][idx], "Unknown")
 
     st.markdown(f"# **{current_temp}°F**")
     st.markdown(f"### Dorset, VT: {current_condition}")
-    st.write(f"Updated: {datetime.now().strftime('%I:%M %p')}")
+    st.write(f"Last Updated: {datetime.now().strftime('%I:%M %p')}")
     st.divider()
 
     # --- NEXT 36 HOURS ---
@@ -66,7 +55,9 @@ try:
     st.line_chart(hourly_df.set_index("Time")["Temp (°F)"])
     
     with st.expander("View Hourly Details"):
-        st.dataframe(hourly_df, use_container_width=True)
+        # Format the time for the table
+        hourly_df["Time"] = hourly_df["Time"].dt.strftime('%m/%d %I:%M %p')
+        st.table(hourly_df)
 
     st.divider()
 
