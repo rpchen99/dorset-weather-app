@@ -1,9 +1,9 @@
 import streamlit as st
 import pandas as pd
 import requests
+from datetime import datetime
 
-st.set_page_config(page_title="Dorset Weather", page_icon="☁️")
-st.title("Dorset, VT Weather")
+st.set_page_config(page_title="Dorset Weather", page_icon="☁️", layout="wide")
 
 # Dictionary to translate WMO Weather Codes
 WMO_CODES = {
@@ -16,7 +16,6 @@ WMO_CODES = {
     95: "🌩 Thunderstorm"
 }
 
-# 1. Using strings instead of lists to avoid the 400 Error
 BASE_URL = "https://api.open-meteo.com"
 params = {
     "latitude": 43.2548,
@@ -35,10 +34,25 @@ try:
     response.raise_for_status()
     data = response.json()
 
-    # --- 2. Hourly Forecast (Next 36 Hours) ---
+    # --- CURRENT CONDITIONS (New Feature) ---
+    current_time_str = datetime.now().strftime('%Y-%m-%dT%H:00')
+    hourly_times = pd.to_datetime(data["hourly"]["time"])
+    
+    # Find the index that matches the current hour
+    current_index = hourly_times.get_indexer([current_time_str], method='nearest')[0]
+    
+    current_temp = data["hourly"]["temperature_2m"][current_index]
+    current_code = data["hourly"]["weather_code"][current_index]
+    current_condition = WMO_CODES.get(current_code, "Unknown")
+
+    st.markdown(f"# **{current_temp}°F**")
+    st.markdown(f"**Dorset, VT:** {current_condition} | *As of {datetime.now().strftime('%I:%M %p')}*")
+    st.divider()
+
+
+    # --- Next 36 Hours Forecast ---
     st.subheader("Next 36 Hours")
     
-    # Process hourly data
     hourly_data = {
         "Time": pd.to_datetime(data["hourly"]["time"]),
         "Temp (°F)": data["hourly"]["temperature_2m"],
@@ -46,14 +60,13 @@ try:
     }
     hourly_df = pd.DataFrame(hourly_data).head(36)
 
-    # Line chart for temperature
     st.line_chart(hourly_df.set_index("Time")["Temp (°F)"])
     
-    # Detailed hourly list
     with st.expander("View Hourly Details"):
-        st.write(hourly_df)
+        st.dataframe(hourly_df, use_container_width=True)
+    st.divider()
 
-    # --- 3. 10-Day Summary Table ---
+    # --- 10-Day Summary Table ---
     st.subheader("10-Day Forecast")
     
     daily_df = pd.DataFrame({
@@ -67,7 +80,6 @@ try:
 
 except Exception as e:
     st.error(f"App Error: {e}")
-
 
 
 
