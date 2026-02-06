@@ -3,7 +3,7 @@ import pandas as pd
 import requests
 from datetime import datetime
 
-st.set_page_config(page_title="Dorset Weather", page_icon="☁️", layout="wide")
+st.set_page_config(page_title="Dorset Weather", page_icon="❄️", layout="wide")
 
 # Weather Code Mapping
 WMO_CODES = {
@@ -16,27 +16,29 @@ WMO_CODES = {
     95: "🌩 Thunderstorm"
 }
 
-# Dorset, VT Coordinates
-LAT, LON = 43.2548, -73.0973
-
-# We use the /v1/forecast endpoint with all parameters joined by commas
-URL = (
-    f"https://api.open-meteo.com?"
-    f"latitude={LAT}&longitude={LON}&"
-    f"hourly=temperature_2m,weather_code&"
-    f"daily=weather_code,temperature_2m_max,temperature_2m_min&"
-    f"temperature_unit=fahrenheit&wind_speed_unit=mph&"
-    f"precipitation_unit=inch&timezone=auto&forecast_days=10"
-)
+# --- THE FIX: FORCED PATH ---
+# We define the base and params separately to ensure 'requests' handles it perfectly
+ENDPOINT = "https://api.open-meteo.com"
+params = {
+    "latitude": 43.2548,
+    "longitude": -73.0973,
+    "hourly": "temperature_2m,weather_code",
+    "daily": "weather_code,temperature_2m_max,temperature_2m_min",
+    "temperature_unit": "fahrenheit",
+    "wind_speed_unit": "mph",
+    "precipitation_unit": "inch",
+    "timezone": "America/New_York",
+    "forecast_days": 10
+}
 
 try:
-    # Fetch Data
-    response = requests.get(URL)
+    # This automatically glues 'ENDPOINT' and 'params' together with the correct /v1/forecast/ path
+    response = requests.get(ENDPOINT, params=params)
     response.raise_for_status()
     data = response.json()
 
     # --- TOP SECTION: Current Temperature ---
-    # Get current hour (e.g., 2026-02-06T09:00)
+    # Dorset is currently seeing snow! 
     now_hour = datetime.now().strftime('%Y-%m-%dT%H:00')
     hourly_times = data["hourly"]["time"]
     
@@ -50,7 +52,7 @@ try:
 
     st.markdown(f"# **{current_temp}°F**")
     st.markdown(f"### Dorset, VT: {current_condition}")
-    st.write(f"Updated: {datetime.now().strftime('%I:%M %p')}")
+    st.write(f"Last Sync: {datetime.now().strftime('%I:%M %p')}")
     st.divider()
 
     # --- MIDDLE SECTION: Next 36 Hours ---
@@ -61,11 +63,9 @@ try:
         "Condition": [WMO_CODES.get(code, "Unknown") for code in data["hourly"]["weather_code"]]
     }).head(36)
 
-    # Line Chart
     st.line_chart(hourly_df.set_index("Time")["Temp (°F)"])
     
     with st.expander("View Hourly Details"):
-        # Format the time for the table
         display_hourly = hourly_df.copy()
         display_hourly["Time"] = display_hourly["Time"].dt.strftime('%m/%d %I:%M %p')
         st.table(display_hourly)
