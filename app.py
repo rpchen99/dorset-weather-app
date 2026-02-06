@@ -3,9 +3,10 @@ import pandas as pd
 import requests
 from datetime import datetime
 
+# 1. Page Config
 st.set_page_config(page_title="Dorset Weather", page_icon="☁️", layout="wide")
 
-# Weather Code Mapping
+# 2. Weather Code Mapping
 WMO_CODES = {
     0: "☀️ Sunny", 1: "🌤 Mainly Clear", 2: "⛅ Partly Cloudy", 3: "☁️ Overcast",
     45: "🌫 Foggy", 48: "🌫 Rime Fog", 51: "🌦 Light Drizzle", 53: "🌦 Moderate Drizzle",
@@ -16,22 +17,22 @@ WMO_CODES = {
     95: "🌩 Thunderstorm"
 }
 
-# 1. HARDCODED CORRECT ENDPOINT
-# This ensures /v1/forecast is always included
-FULL_URL = "https://api.open-meteo.com"
+# 3. THE FIX: Using the absolute full URL string directly
+FULL_API_URL = "https://api.open-meteo.com"
 
 try:
-    response = requests.get(FULL_URL)
+    # Fetch data
+    response = requests.get(FULL_API_URL)
     response.raise_for_status()
     data = response.json()
 
-    # --- CURRENT CONDITIONS ---
-    # Find the hour that matches right now
-    current_time_str = datetime.now().strftime('%Y-%m-%dT%H:00')
+    # --- TOP SECTION: Current Temperature ---
+    # Find the data index for the current hour
+    now_hour = datetime.now().strftime('%Y-%m-%dT%H:00')
     hourly_times = data["hourly"]["time"]
     
     try:
-        idx = hourly_times.index(current_time_str)
+        idx = hourly_times.index(now_hour)
     except ValueError:
         idx = 0 
         
@@ -40,10 +41,10 @@ try:
 
     st.markdown(f"# **{current_temp}°F**")
     st.markdown(f"### Dorset, VT: {current_condition}")
-    st.write(f"Last Updated: {datetime.now().strftime('%I:%M %p')}")
+    st.write(f"Updated: {datetime.now().strftime('%I:%M %p')}")
     st.divider()
 
-    # --- NEXT 36 HOURS ---
+    # --- MIDDLE SECTION: Next 36 Hours ---
     st.subheader("Next 36 Hours")
     hourly_df = pd.DataFrame({
         "Time": pd.to_datetime(data["hourly"]["time"]),
@@ -51,17 +52,18 @@ try:
         "Condition": [WMO_CODES.get(code, "Unknown") for code in data["hourly"]["weather_code"]]
     }).head(36)
 
-    # Line chart of temp
+    # Line Chart
     st.line_chart(hourly_df.set_index("Time")["Temp (°F)"])
     
-    with st.expander("View Hourly Details"):
-        # Format the time for the table
-        hourly_df["Time"] = hourly_df["Time"].dt.strftime('%m/%d %I:%M %p')
-        st.table(hourly_df)
+    with st.expander("View Hourly Table"):
+        # Format the time for readability in the table
+        display_hourly = hourly_df.copy()
+        display_hourly["Time"] = display_hourly["Time"].dt.strftime('%m/%d %I:%M %p')
+        st.table(display_hourly)
 
     st.divider()
 
-    # --- 10-DAY FORECAST ---
+    # --- BOTTOM SECTION: 10-Day Forecast ---
     st.subheader("10-Day Forecast")
     daily_df = pd.DataFrame({
         "Date": data["daily"]["time"],
@@ -72,7 +74,9 @@ try:
     st.table(daily_df)
 
 except Exception as e:
-    st.error(f"App Error: {e}")
+    st.error(f"Critical App Error: {e}")
+    st.info("Check your internet connection or the API status at open-meteo.com.")
+
 
 
 
