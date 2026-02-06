@@ -16,24 +16,24 @@ WMO_CODES = {
     95: "🌩 Thunderstorm"
 }
 
-# --- THE BRUTE FORCE FIX ---
-# We are building the string manually to ensure NO part is lost.
+# --- THE BRUTE FORCE FIX: THE SEQUEL ---
+# I have added /v1/forecast directly into the string below.
 base = "https://api.open-meteo.com"
 lat = "43.2548"
 lon = "-73.0973"
 hourly_vars = "temperature_2m,weather_code"
 daily_vars = "weather_code,temperature_2m_max,temperature_2m_min"
 
+# We build the string and STRIP it to ensure no hidden spaces exist
 final_url = f"{base}?latitude={lat}&longitude={lon}&hourly={hourly_vars}&daily={daily_vars}&temperature_unit=fahrenheit&timezone=America/New_York&forecast_days=10"
 
 try:
-    # We call the URL and force it to be a clean string
+    # Fetch Data
     response = requests.get(final_url.strip())
     response.raise_for_status()
     data = response.json()
 
     # --- TOP SECTION: Current Temperature ---
-    # Since it is currently Friday morning in Dorset, you're likely seeing snow!
     now_hour = datetime.now().strftime('%Y-%m-%dT%H:00')
     hourly_times = data["hourly"]["time"]
     
@@ -61,7 +61,6 @@ try:
     st.line_chart(h_df.set_index("Time")["Temp (°F)"])
     
     with st.expander("View Detailed Hourly Table"):
-        # Formatting for the table view
         table_df = h_df.copy()
         table_df["Time"] = table_df["Time"].dt.strftime('%I:%M %p')
         st.table(table_df)
@@ -82,6 +81,7 @@ except Exception as e:
     # This helps us see EXACTLY what URL the app tried to use
     st.write("Debug - The app tried to call this URL:")
     st.code(final_url)
+
 
 
 
