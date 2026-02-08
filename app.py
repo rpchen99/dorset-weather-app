@@ -81,16 +81,16 @@ times = data["hourly"]["time"]
 index = times.index(now_hour) if now_hour in times else 0
 
 # ---------- CURRENT CONDITIONS ----------
-temp = data["hourly"]["temperature_2m"][index]
-feels = data["hourly"]["apparent_temperature"][index]
-rain = data["hourly"]["precipitation_probability"][index]
-gusts = data["hourly"]["windgusts_10m"][index]
+temp = round(data["hourly"]["temperature_2m"][index], 1)
+feels = round(data["hourly"]["apparent_temperature"][index], 1)
+rain = round(data["hourly"]["precipitation_probability"][index], 1)
+gusts = round(data["hourly"]["windgusts_10m"][index], 1)
 dt_current = pd.to_datetime(data["hourly"]["time"][index])
 condition_icon = get_hourly_icon(data["hourly"]["weathercode"][index], dt_current, rain)
 
 st.markdown(f"# **{temp:.1f}°F**")
 st.markdown(f"### Feels like {feels:.1f}°F · {location_name}")
-st.write(f"{condition_icon} · Rain {rain}% · Gusts {gusts} mph")
+st.write(f"{condition_icon} · Rain {rain:.1f}% · Gusts {gusts:.1f} mph")
 st.write(f"Updated {datetime.now(tz).strftime('%I:%M %p')}")
 st.divider()
 
@@ -104,6 +104,12 @@ df_hourly = pd.DataFrame({
     "WeatherCode": data["hourly"]["weathercode"]
 }).head(36)
 
+# Round temperatures and gusts to 1 decimal place
+df_hourly["Temp (°F)"] = df_hourly["Temp (°F)"].round(1)
+df_hourly["Feels Like (°F)"] = df_hourly["Feels Like (°F)"].round(1)
+df_hourly["Wind Gusts (mph)"] = df_hourly["Wind Gusts (mph)"].round(1)
+df_hourly["Rain %"] = df_hourly["Rain %"].round(1)
+
 # Add day/night/rain aware condition icons
 df_hourly["Condition"] = [
     get_hourly_icon(c, dt, rain) 
@@ -112,10 +118,6 @@ df_hourly["Condition"] = [
 
 # Day & Time column for table
 df_hourly["Day & Time"] = df_hourly["DateTime"].dt.strftime("%a %I:%M %p")
-
-# Round temperatures
-df_hourly["Temp (°F)"] = df_hourly["Temp (°F)"].round(1)
-df_hourly["Feels Like (°F)"] = df_hourly["Feels Like (°F)"].round(1)
 
 # ---------- ALTAR CHART WITH ICONS ----------
 st.subheader("Next 36 Hours · Temperature with Weather Icons")
@@ -164,8 +166,8 @@ daily_df = pd.DataFrame({
         get_hourly_icon(c, pd.to_datetime(d), 0)  # daily rain not included; assume 0%
         for c, d in zip(data["daily"]["weathercode"], data["daily"]["time"])
     ],
-    "High (°F)": data["daily"]["temperature_2m_max"],
-    "Low (°F)": data["daily"]["temperature_2m_min"]
+    "High (°F)": [round(x, 1) for x in data["daily"]["temperature_2m_max"]],
+    "Low (°F)": [round(x, 1) for x in data["daily"]["temperature_2m_min"]]
 })
 
 # ---------- DARK-THEME-FRIENDLY STYLING ----------
