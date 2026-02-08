@@ -73,8 +73,8 @@ rain = data["hourly"]["precipitation_probability"][index]
 gusts = data["hourly"]["windgusts_10m"][index]
 condition_icon = WMO_CODES.get(data["hourly"]["weathercode"][index], "❓")
 
-st.markdown(f"# **{temp}°F**")
-st.markdown(f"### Feels like {feels}°F · {location_name}")
+st.markdown(f"# **{temp:.1f}°F**")
+st.markdown(f"### Feels like {feels:.1f}°F · {location_name}")
 st.write(f"{condition_icon} · Rain {rain}% · Gusts {gusts} mph")
 st.write(f"Updated {datetime.now(tz).strftime('%I:%M %p')}")
 st.divider()
@@ -89,6 +89,10 @@ df_hourly = pd.DataFrame({
     "Condition": [WMO_CODES.get(c, "❓") for c in data["hourly"]["weathercode"]]
 }).head(36)
 
+# Round temperatures to 1 decimal
+df_hourly["Temp (°F)"] = df_hourly["Temp (°F)"].round(1)
+df_hourly["Feels Like (°F)"] = df_hourly["Feels Like (°F)"].round(1)
+
 st.subheader("Next 36 Hours · Temperature / Feels Like")
 st.line_chart(df_hourly.set_index("Time")[["Temp (°F)", "Feels Like (°F)"]])
 
@@ -98,17 +102,20 @@ st.line_chart(df_hourly.set_index("Time")[["Rain %"]])
 # ---------- WIND GUST COLORING ----------
 def color_wind_gusts(val):
     if val >= 40:
-        return "background-color: #ff6666"   # strong gust
+        return "background-color: #ff6666"
     elif val >= 25:
-        return "background-color: #ffcc80"   # moderate
+        return "background-color: #ffcc80"
     else:
-        return "background-color: #99ff99"   # calm
+        return "background-color: #99ff99"
 
+# ---------- HOURLY DETAILS TABLE ----------
 with st.expander("Hourly Details"):
-    styled_df = df_hourly.copy()
-    # Add icons in the table
-    styled_df["Condition"] = df_hourly["Condition"]
-    st.dataframe(styled_df.style.applymap(
+    df_hourly_table = df_hourly.copy()
+    # Only show time (HH:MM AM/PM) and other columns
+    df_hourly_table["Time"] = df_hourly_table["Time"].dt.strftime("%I:%M %p")
+    df_hourly_table = df_hourly_table[["Time", "Temp (°F)", "Feels Like (°F)", "Rain %", "Wind Gusts (mph)", "Condition"]]
+
+    st.dataframe(df_hourly_table.style.applymap(
         color_wind_gusts, subset=["Wind Gusts (mph)"]
     ), use_container_width=True)
 
@@ -124,7 +131,7 @@ daily_df = pd.DataFrame({
     "Low (°F)": data["daily"]["temperature_2m_min"]
 })
 
-# Dark-theme-friendly styling
+# ---------- DARK-THEME-FRIENDLY STYLING ----------
 def highlight_today(val):
     return "background-color: #ffcc80; font-weight: bold" if val == today_str else ""
 
@@ -147,6 +154,7 @@ styled_daily = daily_df.style.applymap(highlight_today, subset=["Date"]) \
                              .applymap(style_low, subset=["Low (°F)"])
 
 st.dataframe(styled_daily, use_container_width=True)
+
 
 
 
