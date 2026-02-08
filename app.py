@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import requests
-from datetime import datetime, date
+from datetime import datetime
 import pytz
 
 # ---------- CONFIG ----------
@@ -94,7 +94,7 @@ st.line_chart(df_hourly.set_index("Time")[["Temp (°F)", "Feels Like (°F)"]])
 st.subheader("Next 36 Hours · Precipitation Probability")
 st.line_chart(df_hourly.set_index("Time")[["Rain %"]])
 
-# Wind gust coloring
+# ---------- WIND GUST COLORING ----------
 def color_wind_gusts(val):
     if val >= 40:
         return "background-color: #ffcccc"   # strong
@@ -122,35 +122,30 @@ daily_df = pd.DataFrame({
     "Low (°F)": data["daily"]["temperature_2m_min"]
 })
 
-# Color high/low temperatures and highlight today
-def style_daily(row):
-    styles = []
-    # Highlight today
-    if row["Date"] == today_str:
-        styles.append("background-color: #d0f0fd")  # light blue
-    else:
-        styles.append("")  
-    # High temp coloring
-    if row["High (°F)"] >= 85:
-        styles.append("color: red; font-weight: bold")
-    elif row["High (°F)"] <= 50:
-        styles.append("color: blue; font-weight: bold")
-    else:
-        styles.append("")
-    # Low temp coloring
-    if row["Low (°F)"] <= 32:
-        styles.append("color: darkblue")
-    elif row["Low (°F)"] >= 75:
-        styles.append("color: darkred")
-    else:
-        styles.append("")
-    return styles
+# Column-wise styling functions
+def highlight_today(val):
+    return "background-color: #d0f0fd; font-weight: bold" if val == today_str else ""
 
-styled_daily = daily_df.style.apply(
-    lambda row: style_daily(row),
-    axis=1
-)
+def style_high(val):
+    if val >= 85:
+        return "color: red; font-weight: bold"
+    elif val <= 50:
+        return "color: blue; font-weight: bold"
+    return ""
+
+def style_low(val):
+    if val <= 32:
+        return "color: darkblue"
+    elif val >= 75:
+        return "color: darkred"
+    return ""
+
+styled_daily = daily_df.style.applymap(highlight_today, subset=["Date"]) \
+                             .applymap(style_high, subset=["High (°F)"]) \
+                             .applymap(style_low, subset=["Low (°F)"])
+
 st.dataframe(styled_daily, use_container_width=True)
+
 
 
 
