@@ -12,6 +12,7 @@ LOCATIONS = {
     "Maywood, NJ (07607)": {"lat": 40.9029, "lon": -74.0635, "tz": "America/New_York"}
 }
 
+# Base weather icons (day/night handled separately)
 WMO_CODES = {
     0: "☀️", 1: "🌤", 2: "⛅", 3: "☁️",
     45: "🌫", 48: "🌫", 51: "🌦", 53: "🌦",
@@ -51,6 +52,23 @@ def fetch_weather(lat, lon, tz):
     response.raise_for_status()
     return response.json()
 
+# ---------- ICON FUNCTION (DAY/NIGHT) ----------
+def get_hourly_icon(code, dt):
+    """Return icon for weather code, using moon for night clear skies."""
+    hour = dt.hour
+    if code == 0:  # Clear sky
+        if 6 <= hour < 18:
+            return "☀️"
+        else:
+            return "🌙"
+    elif code == 1:  # Mainly clear
+        if 6 <= hour < 18:
+            return "🌤"
+        else:
+            return "🌙"
+    else:
+        return WMO_CODES.get(code, "❓")
+
 # ---------- UI ----------
 location_name = st.sidebar.selectbox("Select Location", list(LOCATIONS.keys()))
 loc = LOCATIONS[location_name]
@@ -71,7 +89,8 @@ temp = data["hourly"]["temperature_2m"][index]
 feels = data["hourly"]["apparent_temperature"][index]
 rain = data["hourly"]["precipitation_probability"][index]
 gusts = data["hourly"]["windgusts_10m"][index]
-condition_icon = WMO_CODES.get(data["hourly"]["weathercode"][index], "❓")
+dt_current = pd.to_datetime(data["hourly"]["time"][index])
+condition_icon = get_hourly_icon(data["hourly"]["weathercode"][index], dt_current)
 
 st.markdown(f"# **{temp:.1f}°F**")
 st.markdown(f"### Feels like {feels:.1f}°F · {location_name}")
@@ -86,26 +105,29 @@ df_hourly = pd.DataFrame({
     "Feels Like (°F)": data["hourly"]["apparent_temperature"],
     "Rain %": data["hourly"]["precipitation_probability"],
     "Wind Gusts (mph)": data["hourly"]["windgusts_10m"],
-    "Condition": [WMO_CODES.get(c, "❓") for c in data["hourly"]["weathercode"]]
+    "WeatherCode": data["hourly"]["weathercode"]
 }).head(36)
 
-# Add Day & Time column like "Mon 03:00 PM"
+# Add day/night aware condition icons
+df_hourly["Condition"] = [
+    get_hourly_icon(c, dt) for c, dt in zip(df_hourly["WeatherCode"], df_hourly["DateTime"])
+]
+
+# Day & Time column for table
 df_hourly["Day & Time"] = df_hourly["DateTime"].dt.strftime("%a %I:%M %p")
 
 # Round temperatures
 df_hourly["Temp (°F)"] = df_hourly["Temp (°F)"].round(1)
 df_hourly["Feels Like (°F)"] = df_hourly["Feels Like (°F)"].round(1)
 
-# ---------- LINE CHART WITH WEATHER ICONS ----------
+# ---------- ALTAR CHART WITH ICONS ----------
 st.subheader("Next 36 Hours · Temperature with Weather Icons")
 
-# Base temperature line
 line = alt.Chart(df_hourly).mark_line(point=False).encode(
     x=alt.X('DateTime:T', title='Time'),
     y=alt.Y('Temp (°F):Q', title='Temperature (°F)')
 )
 
-# Icons layer
 icons = alt.Chart(df_hourly).mark_text(
     baseline='bottom',
     fontSize=20
@@ -115,8 +137,7 @@ icons = alt.Chart(df_hourly).mark_text(
     text='Condition:N'
 )
 
-chart = (line + icons).interactive()
-st.altair_chart(chart, use_container_width=True)
+st.altair_chart(line + icons, use_container_width=True)
 
 # ---------- WIND GUST COLORING ----------
 def color_wind_gusts(val):
@@ -142,7 +163,7 @@ st.subheader("10-Day Summary")
 today_str = datetime.now(tz).strftime("%Y-%m-%d")
 daily_df = pd.DataFrame({
     "Date": data["daily"]["time"],
-    "Condition": [WMO_CODES.get(c, "❓") for c in data["daily"]["weathercode"]],
+    "Condition": [get_hourly_icon(c, pd.to_datetime(d)) for c, d in zip(data["daily"]["weathercode"], data["daily"]["time"])],
     "High (°F)": data["daily"]["temperature_2m_max"],
     "Low (°F)": data["daily"]["temperature_2m_min"]
 })
@@ -170,6 +191,7 @@ styled_daily = daily_df.style.applymap(highlight_today, subset=["Date"]) \
                              .applymap(style_low, subset=["Low (°F)"])
 
 st.dataframe(styled_daily, use_container_width=True)
+
 
 
 
