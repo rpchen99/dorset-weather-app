@@ -26,13 +26,15 @@ selected_loc_name = st.sidebar.selectbox("Select Location", list(LOCATIONS.keys(
 loc = LOCATIONS[selected_loc_name]
 
 # --- API SETUP ---
-base = "https://api.open-meteo.com/v1/forecast"
+# Fetching hourly precip probability and wind speed, plus daily max wind speed
+base = "https://api.open-meteo.com"
 params = {
     "latitude": loc["lat"],
     "longitude": loc["lon"],
-    "hourly": "temperature_2m,weathercode",
-    "daily": "weathercode,temperature_2m_max,temperature_2m_min",
+    "hourly": "temperature_2m,weathercode,precipitation_probability,windspeed_10m",
+    "daily": "weathercode,temperature_2m_max,temperature_2m_min,windspeed_10m_max",
     "temperature_unit": "fahrenheit",
+    "windspeed_unit": "mph",
     "timezone": loc["tz"],
     "forecast_days": 10
 }
@@ -49,21 +51,30 @@ try:
 
     current_temp = data["hourly"]["temperature_2m"][idx]
     current_condition = WMO_CODES.get(data["hourly"]["weathercode"][idx], "Unknown")
+    current_precip = data["hourly"]["precipitation_probability"][idx]
+    current_wind = data["hourly"]["windspeed_10m"][idx]
 
-    st.markdown(f"# **{current_temp}°F**")
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Temperature", f"{current_temp}°F")
+    col2.metric("Precip Chance", f"{current_precip}%")
+    col3.metric("Wind Speed", f"{current_wind} mph")
+    
     st.markdown(f"### {selected_loc_name}: {current_condition}")
     st.write(f"Updated at {datetime.now().strftime('%I:%M %p')}")
     st.divider()
 
     # --- VISUALS ---
-    st.subheader("Next 36 Hours")
+    st.subheader("Temperature & Rain Probability (Next 36 Hours)")
     h_df = pd.DataFrame({
         "Time": pd.to_datetime(data["hourly"]["time"]),
         "Temp (°F)": data["hourly"]["temperature_2m"],
+        "Rain %": data["hourly"]["precipitation_probability"],
+        "Wind (mph)": data["hourly"]["windspeed_10m"],
         "Condition": [WMO_CODES.get(c, "Unknown") for c in data["hourly"]["weathercode"]]
     }).head(36)
 
-    st.line_chart(h_df.set_index("Time")["Temp (°F)"])
+    # Multi-line chart for temp and precip
+    st.line_chart(h_df.set_index("Time")[["Temp (°F)", "Rain %"]])
 
     with st.expander("View Detailed Hourly Table"):
         table_df = h_df.copy()
@@ -76,12 +87,14 @@ try:
         "Date": data["daily"]["time"],
         "Condition": [WMO_CODES.get(c, "Unknown") for c in data["daily"]["weathercode"]],
         "High (°F)": data["daily"]["temperature_2m_max"],
-        "Low (°F)": data["daily"]["temperature_2m_min"]
+        "Low (°F)": data["daily"]["temperature_2m_min"],
+        "Max Wind (mph)": data["daily"]["windspeed_10m_max"]
     })
     st.table(d_df)
 
 except Exception as e:
     st.error(f"Error: {e}")
+
 
 
 
