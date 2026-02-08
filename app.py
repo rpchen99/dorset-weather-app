@@ -61,55 +61,23 @@ params = {
         "weathercode,"
         "windgusts_10m"
     ),
+    "daily": (
+        "weathercode,"
+        "temperature_2m_max,"
+        "temperature_2m_min"
+    ),
     "temperature_unit": "fahrenheit",
     "windspeed_unit": "mph",
     "timezone": loc["tz"],
-    "forecast_days": 2
+    "forecast_days": 10
 }
 
 response = requests.get(url, params=params, timeout=10)
 response.raise_for_status()
 data = response.json()
 
-# ---------- CURRENT CONDITIONS ----------
-tz = pytz.timezone(loc["tz"])
-now_hour = datetime.now(tz).strftime("%Y-%m-%dT%H:00")
-times = data["hourly"]["time"]
+# ---------- CURRENT CONDITIONS
 
-index = times.index(now_hour) if now_hour in times else 0
-
-temp = data["hourly"]["temperature_2m"][index]
-feels = data["hourly"]["apparent_temperature"][index]
-rain = data["hourly"]["precipitation_probability"][index]
-gusts = data["hourly"]["windgusts_10m"][index]
-condition = WMO_CODES.get(
-    data["hourly"]["weathercode"][index],
-    "Unknown"
-)
-
-st.markdown(f"# **{temp}°F**")
-st.markdown(f"### Feels like {feels}°F · {location_name}")
-st.write(f"{condition} · Rain {rain}% · Gusts {gusts} mph")
-st.write(f"Updated {datetime.now(tz).strftime('%I:%M %p')}")
-st.divider()
-
-# ---------- NEXT 36 HOURS ----------
-df = pd.DataFrame({
-    "Time": pd.to_datetime(data["hourly"]["time"]),
-    "Temp (°F)": data["hourly"]["temperature_2m"],
-    "Feels Like (°F)": data["hourly"]["apparent_temperature"],
-    "Rain %": data["hourly"]["precipitation_probability"],
-    "Wind Gusts (mph)": data["hourly"]["windgusts_10m"]
-}).head(36)
-
-st.subheader("Next 36 Hours · Temperature")
-st.line_chart(df.set_index("Time")[["Temp (°F)", "Feels Like (°F)"]])
-
-st.subheader("Next 36 Hours · Precipitation Probability")
-st.line_chart(df.set_index("Time")[["Rain %"]])
-
-with st.expander("Hourly Details"):
-    st.dataframe(df, use_container_width=True)
 
 
 
