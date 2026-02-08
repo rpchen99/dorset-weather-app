@@ -153,7 +153,12 @@ with st.expander("Hourly Details"):
     df_hourly_table = df_hourly_table[["Day & Time", "Temp (°F)", "Feels Like (°F)", "Rain %", "Wind Gusts (mph)", "Condition"]]
     st.dataframe(df_hourly_table.style.applymap(
         color_wind_gusts, subset=["Wind Gusts (mph)"]
-    ), use_container_width=True)
+    ).format({
+        "Temp (°F)": "{:.1f}",
+        "Feels Like (°F)": "{:.1f}",
+        "Wind Gusts (mph)": "{:.1f}",
+        "Rain %": "{:.1f}"
+    }), use_container_width=True)
 
 # ---------- 10-DAY SUMMARY ----------
 st.divider()
@@ -188,11 +193,16 @@ def style_low(val):
         return "color: #ff9933; font-weight: bold"
     return ""
 
-styled_daily = daily_df.style.applymap(highlight_today, subset=["Date"]) \
-                             .applymap(style_high, subset=["High (°F)"]) \
-                             .applymap(style_low, subset=["Low (°F)"])
+styled_daily = (
+    daily_df.style
+    .applymap(highlight_today, subset=["Date"])
+    .applymap(style_high, subset=["High (°F)"])
+    .applymap(style_low, subset=["Low (°F)"])
+    .format({"High (°F)": "{:.1f}", "Low (°F)": "{:.1f}"})
+)
 
 st.dataframe(styled_daily, use_container_width=True)
+
 
 
 
