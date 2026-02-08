@@ -66,9 +66,7 @@ try:
 
     st.markdown(f"# **{current_temp}°F**")
     st.markdown(f"### Feels like {feels_like}°F · {selected_loc_name}")
-    st.write(
-        f"**{condition}** · 🌧 {precip}% · 💨 Gusts {gusts} mph"
-    )
+    st.write(f"**{condition}** · 🌧 {precip}% · 💨 Gusts {gusts} mph")
     st.write(f"Updated at {datetime.now(tz).strftime('%I:%M %p')}")
     st.divider()
 
@@ -78,15 +76,8 @@ try:
         "Time": pd.to_datetime(data["hourly"]["time"]),
         "Temp (°F)": data["hourly"]["temperature_2m"],
         "Feels Like (°F)": data["hourly"]["apparent_temperature"],
-        "Rain %": data["hourly"]["precipitation_probability"],
-        "Wind Gusts (mph)": data["hourly"]["windgusts_10m"],
-        "Condition": [
-            WMO_CODES.get(c, "Unknown")
-            for c in data["hourly"]["weathercode"]
-        ]
-    }).head(36)
+        "Rain %": d
 
-    st.line_chart(
 
 
 
