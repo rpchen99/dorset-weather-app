@@ -2,11 +2,12 @@ import streamlit as st
 import pandas as pd
 import requests
 from datetime import datetime
+import pytz
 
 # --- CONFIG ---
 LOCATIONS = {
-    "Dorset, VT": {"lat": "43.2548", "lon": "-73.0973", "tz": "America/New_York"},
-    "Arlington, VA (22202)": {"lat": "38.8500", "lon": "-77.0400", "tz": "America/New_York"}
+    "Dorset, VT": {"lat": 43.2548, "lon": -73.0973, "tz": "America/New_York"},
+    "Arlington, VA (22202)": {"lat": 38.8500, "lon": -77.0400, "tz": "America/New_York"}
 }
 
 WMO_CODES = {
@@ -25,8 +26,8 @@ st.set_page_config(page_title="Weather Dashboard", page_icon="❄️", layout="w
 selected_loc_name = st.sidebar.selectbox("Select Location", list(LOCATIONS.keys()))
 loc = LOCATIONS[selected_loc_name]
 
-# --- API SETUP ---
-base = "https://api.open-meteo.com" # FIXED ENDPOINT
+# --- API SETUP (FIXED ENDPOINT) ---
+base = "https://api.open-meteo.com/v1/forecast"
 params = {
     "latitude": loc["lat"],
     "longitude": loc["lon"],
@@ -39,12 +40,14 @@ params = {
 }
 
 try:
-    response = requests.get(base, params=params)
+    response = requests.get(base, params=params, timeout=10)
     response.raise_for_status()
     data = response.json()
 
     # --- CURRENT CONDITIONS ---
-    now_hour = datetime.now().strftime('%Y-%m-%dT%H:00')
+    tz = pytz.timezone(loc["tz"])
+    now_hour = datetime.now(tz).strftime("%Y-%m-%dT%H:00")
+
     hourly_times = data["hourly"]["time"]
     idx = hourly_times.index(now_hour) if now_hour in hourly_times else 0
 
@@ -58,8 +61,11 @@ try:
     col1.metric("Temperature", f"{current_temp}°F")
     col2.metric("Precip Chance", f"{current_precip}%")
     col3.metric("Wind Speed", f"{current_wind} mph")
-    
-    st.write(f"Condition: **{current_condition}** | Updated at {datetime.now().strftime('%I:%M %p')}")
+
+    st.write(
+        f"Condition: **{current_condition}** | "
+        f"Updated at {datetime.now(tz).strftime('%I:%M %p')}"
+    )
     st.divider()
 
     # --- VISUALS ---
@@ -81,10 +87,12 @@ try:
         "Low (°F)": data["daily"]["temperature_2m_min"],
         "Max Wind (mph)": data["daily"]["windspeed_10m_max"]
     })
+
     st.dataframe(d_df, use_container_width=True)
 
 except Exception as e:
-    st.error(f"Error: {e}")
+    st.error(f"Error loading weather data: {e}")
+
 
 
 
