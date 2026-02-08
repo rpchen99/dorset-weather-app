@@ -11,6 +11,7 @@ LOCATIONS = {
     "Maywood, NJ (07607)": {"lat": 40.9029, "lon": -74.0635, "tz": "America/New_York"}
 }
 
+# Weather icons
 WMO_CODES = {
     0: "☀️", 1: "🌤", 2: "⛅", 3: "☁️",
     45: "🌫", 48: "🌫", 51: "🌦", 53: "🌦",
@@ -23,7 +24,7 @@ WMO_CODES = {
 st.set_page_config(page_title="Weather Dashboard", page_icon="❄️", layout="wide")
 
 # ---------- API CALL (CACHED) ----------
-@st.cache_data(ttl=600)  # Cache for 10 minutes
+@st.cache_data(ttl=600)
 def fetch_weather(lat, lon, tz):
     url = "https://api.open-meteo.com/v1/forecast"
     params = {
@@ -84,10 +85,11 @@ df_hourly = pd.DataFrame({
     "Temp (°F)": data["hourly"]["temperature_2m"],
     "Feels Like (°F)": data["hourly"]["apparent_temperature"],
     "Rain %": data["hourly"]["precipitation_probability"],
-    "Wind Gusts (mph)": data["hourly"]["windgusts_10m"]
+    "Wind Gusts (mph)": data["hourly"]["windgusts_10m"],
+    "Condition": [WMO_CODES.get(c, "❓") for c in data["hourly"]["weathercode"]]
 }).head(36)
 
-st.subheader("Next 36 Hours · Temperature")
+st.subheader("Next 36 Hours · Temperature / Feels Like")
 st.line_chart(df_hourly.set_index("Time")[["Temp (°F)", "Feels Like (°F)"]])
 
 st.subheader("Next 36 Hours · Precipitation Probability")
@@ -103,25 +105,26 @@ def color_wind_gusts(val):
         return "background-color: #99ff99"   # calm
 
 with st.expander("Hourly Details"):
-    styled_df = df_hourly.style.applymap(
+    styled_df = df_hourly.copy()
+    # Add icons in the table
+    styled_df["Condition"] = df_hourly["Condition"]
+    st.dataframe(styled_df.style.applymap(
         color_wind_gusts, subset=["Wind Gusts (mph)"]
-    )
-    st.dataframe(styled_df, use_container_width=True)
-
-st.divider()
+    ), use_container_width=True)
 
 # ---------- 10-DAY SUMMARY ----------
+st.divider()
 st.subheader("10-Day Summary")
 
 today_str = datetime.now(tz).strftime("%Y-%m-%d")
 daily_df = pd.DataFrame({
     "Date": data["daily"]["time"],
-    "Condition": [WMO_CODES.get(code, "❓") for code in data["daily"]["weathercode"]],
+    "Condition": [WMO_CODES.get(c, "❓") for c in data["daily"]["weathercode"]],
     "High (°F)": data["daily"]["temperature_2m_max"],
     "Low (°F)": data["daily"]["temperature_2m_min"]
 })
 
-# Column-wise dark-theme-friendly styling
+# Dark-theme-friendly styling
 def highlight_today(val):
     return "background-color: #ffcc80; font-weight: bold" if val == today_str else ""
 
@@ -144,6 +147,7 @@ styled_daily = daily_df.style.applymap(highlight_today, subset=["Date"]) \
                              .applymap(style_low, subset=["Low (°F)"])
 
 st.dataframe(styled_daily, use_container_width=True)
+
 
 
 
