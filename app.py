@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import requests
-from datetime import datetime
+from datetime import datetime, date
 import pytz
 
 # ---------- CONFIG ----------
@@ -11,94 +11,76 @@ LOCATIONS = {
     "Maywood, NJ (07607)": {"lat": 40.9029, "lon": -74.0635, "tz": "America/New_York"}
 }
 
+# Map weather codes to icons
 WMO_CODES = {
-    0: "Sunny",
-    1: "Mainly Clear",
-    2: "Partly Cloudy",
-    3: "Overcast",
-    45: "Fog",
-    48: "Rime Fog",
-    51: "Light Drizzle",
-    53: "Moderate Drizzle",
-    55: "Dense Drizzle",
-    61: "Slight Rain",
-    63: "Moderate Rain",
-    65: "Heavy Rain",
-    71: "Slight Snow",
-    73: "Moderate Snow",
-    75: "Heavy Snow",
-    77: "Snow Grains",
-    80: "Rain Showers",
-    81: "Rain Showers",
-    82: "Violent Rain Showers",
-    85: "Snow Showers",
-    86: "Heavy Snow Showers",
-    95: "Thunderstorm"
+    0: "☀️", 1: "🌤", 2: "⛅", 3: "☁️",
+    45: "🌫", 48: "🌫", 51: "🌦", 53: "🌦",
+    55: "🌦", 61: "🌧", 63: "🌧", 65: "🌧",
+    71: "❄️", 73: "❄️", 75: "❄️", 77: "❄️",
+    80: "🌦", 81: "🌧", 82: "⛈", 85: "❄️",
+    86: "❄️", 95: "🌩"
 }
 
-st.set_page_config(
-    page_title="Weather Dashboard",
-    page_icon="❄️",
-    layout="wide"
-)
+st.set_page_config(page_title="Weather Dashboard", page_icon="❄️", layout="wide")
+
+# ---------- API CALL (CACHED) ----------
+@st.cache_data(ttl=600)  # Cache for 10 minutes
+def fetch_weather(lat, lon, tz):
+    url = "https://api.open-meteo.com/v1/forecast"
+    params = {
+        "latitude": lat,
+        "longitude": lon,
+        "hourly": (
+            "temperature_2m,"
+            "apparent_temperature,"
+            "precipitation_probability,"
+            "weathercode,"
+            "windgusts_10m"
+        ),
+        "daily": (
+            "weathercode,"
+            "temperature_2m_max,"
+            "temperature_2m_min"
+        ),
+        "temperature_unit": "fahrenheit",
+        "windspeed_unit": "mph",
+        "timezone": tz,
+        "forecast_days": 10
+    }
+    response = requests.get(url, params=params, timeout=10)
+    response.raise_for_status()
+    return response.json()
 
 # ---------- UI ----------
-location_name = st.sidebar.selectbox(
-    "Select Location",
-    list(LOCATIONS.keys())
-)
+location_name = st.sidebar.selectbox("Select Location", list(LOCATIONS.keys()))
 loc = LOCATIONS[location_name]
 
-# ---------- API ----------
-url = "https://api.open-meteo.com/v1/forecast"
-params = {
-    "latitude": loc["lat"],
-    "longitude": loc["lon"],
-    "hourly": (
-        "temperature_2m,"
-        "apparent_temperature,"
-        "precipitation_probability,"
-        "weathercode,"
-        "windgusts_10m"
-    ),
-    "daily": (
-        "weathercode,"
-        "temperature_2m_max,"
-        "temperature_2m_min"
-    ),
-    "temperature_unit": "fahrenheit",
-    "windspeed_unit": "mph",
-    "timezone": loc["tz"],
-    "forecast_days": 10
-}
+try:
+    data = fetch_weather(loc["lat"], loc["lon"], loc["tz"])
+except Exception as e:
+    st.error(f"Error fetching weather: {e}")
+    st.stop()
 
-response = requests.get(url, params=params, timeout=10)
-response.raise_for_status()
-data = response.json()
-
-# ---------- CURRENT CONDITIONS ----------
 tz = pytz.timezone(loc["tz"])
 now_hour = datetime.now(tz).strftime("%Y-%m-%dT%H:00")
 times = data["hourly"]["time"]
 index = times.index(now_hour) if now_hour in times else 0
 
+# ---------- CURRENT CONDITIONS ----------
 temp = data["hourly"]["temperature_2m"][index]
 feels = data["hourly"]["apparent_temperature"][index]
 rain = data["hourly"]["precipitation_probability"][index]
 gusts = data["hourly"]["windgusts_10m"][index]
-condition = WMO_CODES.get(
-    data["hourly"]["weathercode"][index],
-    "Unknown"
-)
+condition_icon = WMO_CODES.get(data["hourly"]["weathercode"][index], "❓")
 
 st.markdown(f"# **{temp}°F**")
 st.markdown(f"### Feels like {feels}°F · {location_name}")
-st.write(f"{condition} · Rain {rain}% · Gusts {gusts} mph")
+st.write(f"{condition_icon} · Rain {rain}% · Gusts {gusts} mph")
 st.write(f"Updated {datetime.now(tz).strftime('%I:%M %p')}")
 st.divider()
 
 # ---------- NEXT 36 HOURS ----------
-df = pd.DataFrame({
+df_hourly = pd.DataFrame({
     "Time": pd.to_datetime(data["hourly"]["time"]),
     "Temp (°F)": data["hourly"]["temperature_2m"],
     "Feels Like (°F)": data["hourly"]["apparent_temperature"],
@@ -107,24 +89,23 @@ df = pd.DataFrame({
 }).head(36)
 
 st.subheader("Next 36 Hours · Temperature")
-st.line_chart(df.set_index("Time")[["Temp (°F)", "Feels Like (°F)"]])
+st.line_chart(df_hourly.set_index("Time")[["Temp (°F)", "Feels Like (°F)"]])
 
 st.subheader("Next 36 Hours · Precipitation Probability")
-st.line_chart(df.set_index("Time")[["Rain %"]])
+st.line_chart(df_hourly.set_index("Time")[["Rain %"]])
 
-# ---------- WIND GUST COLORING ----------
+# Wind gust coloring
 def color_wind_gusts(val):
     if val >= 40:
-        return "background-color: #ffcccc"
+        return "background-color: #ffcccc"   # strong
     elif val >= 25:
-        return "background-color: #fff2cc"
+        return "background-color: #fff2cc"   # breezy
     else:
-        return "background-color: #e8f5e9"
+        return "background-color: #e8f5e9"   # calm
 
 with st.expander("Hourly Details"):
-    styled_df = df.style.applymap(
-        color_wind_gusts,
-        subset=["Wind Gusts (mph)"]
+    styled_df = df_hourly.style.applymap(
+        color_wind_gusts, subset=["Wind Gusts (mph)"]
     )
     st.dataframe(styled_df, use_container_width=True)
 
@@ -133,17 +114,44 @@ st.divider()
 # ---------- 10-DAY SUMMARY ----------
 st.subheader("10-Day Summary")
 
+today_str = datetime.now(tz).strftime("%Y-%m-%d")
 daily_df = pd.DataFrame({
     "Date": data["daily"]["time"],
-    "Condition": [
-        WMO_CODES.get(code, "Unknown")
-        for code in data["daily"]["weathercode"]
-    ],
+    "Condition": [WMO_CODES.get(code, "❓") for code in data["daily"]["weathercode"]],
     "High (°F)": data["daily"]["temperature_2m_max"],
     "Low (°F)": data["daily"]["temperature_2m_min"]
 })
 
-st.dataframe(daily_df, use_container_width=True)
+# Color high/low temperatures and highlight today
+def style_daily(row):
+    styles = []
+    # Highlight today
+    if row["Date"] == today_str:
+        styles.append("background-color: #d0f0fd")  # light blue
+    else:
+        styles.append("")  
+    # High temp coloring
+    if row["High (°F)"] >= 85:
+        styles.append("color: red; font-weight: bold")
+    elif row["High (°F)"] <= 50:
+        styles.append("color: blue; font-weight: bold")
+    else:
+        styles.append("")
+    # Low temp coloring
+    if row["Low (°F)"] <= 32:
+        styles.append("color: darkblue")
+    elif row["Low (°F)"] >= 75:
+        styles.append("color: darkred")
+    else:
+        styles.append("")
+    return styles
+
+styled_daily = daily_df.style.apply(
+    lambda row: style_daily(row),
+    axis=1
+)
+st.dataframe(styled_daily, use_container_width=True)
+
 
 
 
