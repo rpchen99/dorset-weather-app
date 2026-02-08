@@ -3,6 +3,7 @@ import pandas as pd
 import requests
 from datetime import datetime
 import pytz
+import altair as alt
 
 # ---------- CONFIG ----------
 LOCATIONS = {
@@ -11,7 +12,6 @@ LOCATIONS = {
     "Maywood, NJ (07607)": {"lat": 40.9029, "lon": -74.0635, "tz": "America/New_York"}
 }
 
-# Weather icons
 WMO_CODES = {
     0: "☀️", 1: "🌤", 2: "⛅", 3: "☁️",
     45: "🌫", 48: "🌫", 51: "🌦", 53: "🌦",
@@ -81,7 +81,7 @@ st.divider()
 
 # ---------- NEXT 36 HOURS ----------
 df_hourly = pd.DataFrame({
-    "Time": pd.to_datetime(data["hourly"]["time"]),
+    "DateTime": pd.to_datetime(data["hourly"]["time"]),
     "Temp (°F)": data["hourly"]["temperature_2m"],
     "Feels Like (°F)": data["hourly"]["apparent_temperature"],
     "Rain %": data["hourly"]["precipitation_probability"],
@@ -89,15 +89,34 @@ df_hourly = pd.DataFrame({
     "Condition": [WMO_CODES.get(c, "❓") for c in data["hourly"]["weathercode"]]
 }).head(36)
 
-# Round temperatures to 1 decimal
+# Add Day & Time column like "Mon 03:00 PM"
+df_hourly["Day & Time"] = df_hourly["DateTime"].dt.strftime("%a %I:%M %p")
+
+# Round temperatures
 df_hourly["Temp (°F)"] = df_hourly["Temp (°F)"].round(1)
 df_hourly["Feels Like (°F)"] = df_hourly["Feels Like (°F)"].round(1)
 
-st.subheader("Next 36 Hours · Temperature / Feels Like")
-st.line_chart(df_hourly.set_index("Time")[["Temp (°F)", "Feels Like (°F)"]])
+# ---------- LINE CHART WITH WEATHER ICONS ----------
+st.subheader("Next 36 Hours · Temperature with Weather Icons")
 
-st.subheader("Next 36 Hours · Precipitation Probability")
-st.line_chart(df_hourly.set_index("Time")[["Rain %"]])
+# Base temperature line
+line = alt.Chart(df_hourly).mark_line(point=False).encode(
+    x=alt.X('DateTime:T', title='Time'),
+    y=alt.Y('Temp (°F):Q', title='Temperature (°F)')
+)
+
+# Icons layer
+icons = alt.Chart(df_hourly).mark_text(
+    baseline='bottom',
+    fontSize=20
+).encode(
+    x='DateTime:T',
+    y='Temp (°F):Q',
+    text='Condition:N'
+)
+
+chart = (line + icons).interactive()
+st.altair_chart(chart, use_container_width=True)
 
 # ---------- WIND GUST COLORING ----------
 def color_wind_gusts(val):
@@ -111,10 +130,7 @@ def color_wind_gusts(val):
 # ---------- HOURLY DETAILS TABLE ----------
 with st.expander("Hourly Details"):
     df_hourly_table = df_hourly.copy()
-    # Only show time (HH:MM AM/PM) and other columns
-    df_hourly_table["Time"] = df_hourly_table["Time"].dt.strftime("%I:%M %p")
-    df_hourly_table = df_hourly_table[["Time", "Temp (°F)", "Feels Like (°F)", "Rain %", "Wind Gusts (mph)", "Condition"]]
-
+    df_hourly_table = df_hourly_table[["Day & Time", "Temp (°F)", "Feels Like (°F)", "Rain %", "Wind Gusts (mph)", "Condition"]]
     st.dataframe(df_hourly_table.style.applymap(
         color_wind_gusts, subset=["Wind Gusts (mph)"]
     ), use_container_width=True)
@@ -154,6 +170,7 @@ styled_daily = daily_df.style.applymap(highlight_today, subset=["Date"]) \
                              .applymap(style_low, subset=["Low (°F)"])
 
 st.dataframe(styled_daily, use_container_width=True)
+
 
 
 
