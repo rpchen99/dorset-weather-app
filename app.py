@@ -75,13 +75,17 @@ data = response.json()
 tz = pytz.timezone(loc["tz"])
 now_hour = datetime.now(tz).strftime("%Y-%m-%dT%H:00")
 times = data["hourly"]["time"]
+
 index = times.index(now_hour) if now_hour in times else 0
 
 temp = data["hourly"]["temperature_2m"][index]
 feels = data["hourly"]["apparent_temperature"][index]
 rain = data["hourly"]["precipitation_probability"][index]
 gusts = data["hourly"]["windgusts_10m"][index]
-condition = WMO_CODES.get(data["hourly"]["weathercode"][index], "Unknown")
+condition = WMO_CODES.get(
+    data["hourly"]["weathercode"][index],
+    "Unknown"
+)
 
 st.markdown(f"# **{temp}°F**")
 st.markdown(f"### Feels like {feels}°F · {location_name}")
@@ -104,21 +108,9 @@ st.line_chart(df.set_index("Time")[["Temp (°F)", "Feels Like (°F)"]])
 st.subheader("Next 36 Hours · Precipitation Probability")
 st.line_chart(df.set_index("Time")[["Rain %"]])
 
-# ---------- WIND GUST COLORING ----------
-def color_wind_gusts(val):
-    if val >= 40:
-        return "background-color: #ffcccc"   # strong
-    elif val >= 25:
-        return "background-color: #fff2cc"   # breezy
-    else:
-        return "background-color: #e8f5e9"   # calm
-
 with st.expander("Hourly Details"):
-    styled_df = df.style.applymap(
-        color_wind_gusts,
-        subset=["Wind Gusts (mph)"]
-    )
-    st.dataframe(styled_df, use_container_width=True)
+    st.dataframe(df, use_container_width=True)
+
 
 
 
