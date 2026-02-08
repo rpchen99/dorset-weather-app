@@ -12,7 +12,7 @@ LOCATIONS = {
     "Maywood, NJ (07607)": {"lat": 40.9029, "lon": -74.0635, "tz": "America/New_York"}
 }
 
-# Base weather icons (day/night handled separately)
+# Base weather icons
 WMO_CODES = {
     0: "☀️", 1: "🌤", 2: "⛅", 3: "☁️",
     45: "🌫", 48: "🌫", 51: "🌦", 53: "🌦",
@@ -52,20 +52,16 @@ def fetch_weather(lat, lon, tz):
     response.raise_for_status()
     return response.json()
 
-# ---------- ICON FUNCTION (DAY/NIGHT) ----------
-def get_hourly_icon(code, dt):
-    """Return icon for weather code, using moon for night clear skies."""
+# ---------- ICON FUNCTION (DAY/NIGHT + RAIN) ----------
+def get_hourly_icon(code, dt, rain_prob):
+    """Return icon for weather code, using moon for night clear skies and rain icon for heavy rain."""
     hour = dt.hour
+    if rain_prob >= 30:
+        return "🌧"
     if code == 0:  # Clear sky
-        if 6 <= hour < 18:
-            return "☀️"
-        else:
-            return "🌙"
+        return "☀️" if 6 <= hour < 18 else "🌙"
     elif code == 1:  # Mainly clear
-        if 6 <= hour < 18:
-            return "🌤"
-        else:
-            return "🌙"
+        return "🌤" if 6 <= hour < 18 else "🌙"
     else:
         return WMO_CODES.get(code, "❓")
 
@@ -90,7 +86,7 @@ feels = data["hourly"]["apparent_temperature"][index]
 rain = data["hourly"]["precipitation_probability"][index]
 gusts = data["hourly"]["windgusts_10m"][index]
 dt_current = pd.to_datetime(data["hourly"]["time"][index])
-condition_icon = get_hourly_icon(data["hourly"]["weathercode"][index], dt_current)
+condition_icon = get_hourly_icon(data["hourly"]["weathercode"][index], dt_current, rain)
 
 st.markdown(f"# **{temp:.1f}°F**")
 st.markdown(f"### Feels like {feels:.1f}°F · {location_name}")
@@ -108,9 +104,10 @@ df_hourly = pd.DataFrame({
     "WeatherCode": data["hourly"]["weathercode"]
 }).head(36)
 
-# Add day/night aware condition icons
+# Add day/night/rain aware condition icons
 df_hourly["Condition"] = [
-    get_hourly_icon(c, dt) for c, dt in zip(df_hourly["WeatherCode"], df_hourly["DateTime"])
+    get_hourly_icon(c, dt, rain) 
+    for c, dt, rain in zip(df_hourly["WeatherCode"], df_hourly["DateTime"], df_hourly["Rain %"])
 ]
 
 # Day & Time column for table
@@ -163,7 +160,10 @@ st.subheader("10-Day Summary")
 today_str = datetime.now(tz).strftime("%Y-%m-%d")
 daily_df = pd.DataFrame({
     "Date": data["daily"]["time"],
-    "Condition": [get_hourly_icon(c, pd.to_datetime(d)) for c, d in zip(data["daily"]["weathercode"], data["daily"]["time"])],
+    "Condition": [
+        get_hourly_icon(c, pd.to_datetime(d), 0)  # daily rain not included; assume 0%
+        for c, d in zip(data["daily"]["weathercode"], data["daily"]["time"])
+    ],
     "High (°F)": data["daily"]["temperature_2m_max"],
     "Low (°F)": data["daily"]["temperature_2m_min"]
 })
@@ -191,6 +191,7 @@ styled_daily = daily_df.style.applymap(highlight_today, subset=["Date"]) \
                              .applymap(style_low, subset=["Low (°F)"])
 
 st.dataframe(styled_daily, use_container_width=True)
+
 
 
 
