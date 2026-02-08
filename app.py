@@ -19,64 +19,7 @@ WMO_CODES = {
     77: "❄️ Snow Grains", 80: "🌦 Slight Rain Showers", 81: "🌧 Moderate Rain Showers",
     82: "⛈ Violent Rain Showers", 85: "❄️ Slight Snow Showers",
     86: "❄️ Heavy Snow Showers", 95: "🌩 Thunderstorm"
-}
 
-st.set_page_config(page_title="Weather Dashboard", page_icon="❄️", layout="wide")
-
-# --- UI ---
-selected_loc_name = st.sidebar.selectbox("Select Location", list(LOCATIONS.keys()))
-loc = LOCATIONS[selected_loc_name]
-
-# --- API SETUP ---
-base = "https://api.open-meteo.com/v1/forecast"
-params = {
-    "latitude": loc["lat"],
-    "longitude": loc["lon"],
-    "hourly": (
-        "temperature_2m,"
-        "apparent_temperature,"
-        "precipitation_probability,"
-        "weathercode,"
-        "windgusts_10m"
-    ),
-    "daily": "weathercode,temperature_2m_max,temperature_2m_min",
-    "temperature_unit": "fahrenheit",
-    "windspeed_unit": "mph",
-    "timezone": loc["tz"],
-    "forecast_days": 10
-}
-
-try:
-    response = requests.get(base, params=params, timeout=10)
-    response.raise_for_status()
-    data = response.json()
-
-    # --- CURRENT CONDITIONS ---
-    tz = pytz.timezone(loc["tz"])
-    now_hour = datetime.now(tz).strftime("%Y-%m-%dT%H:00")
-
-    hourly_times = data["hourly"]["time"]
-    idx = hourly_times.index(now_hour) if now_hour in hourly_times else 0
-
-    current_temp = data["hourly"]["temperature_2m"][idx]
-    feels_like = data["hourly"]["apparent_temperature"][idx]
-    precip = data["hourly"]["precipitation_probability"][idx]
-    gusts = data["hourly"]["windgusts_10m"][idx]
-    condition = WMO_CODES.get(data["hourly"]["weathercode"][idx], "Unknown")
-
-    st.markdown(f"# **{current_temp}°F**")
-    st.markdown(f"### Feels like {feels_like}°F · {selected_loc_name}")
-    st.write(f"**{condition}** · 🌧 {precip}% · 💨 Gusts {gusts} mph")
-    st.write(f"Updated at {datetime.now(tz).strftime('%I:%M %p')}")
-    st.divider()
-
-    # --- NEXT 36 HOURS ---
-    st.subheader("Next 36 Hours")
-    h_df = pd.DataFrame({
-        "Time": pd.to_datetime(data["hourly"]["time"]),
-        "Temp (°F)": data["hourly"]["temperature_2m"],
-        "Feels Like (°F)": data["hourly"]["apparent_temperature"],
-        "Rain %": d
 
 
 
