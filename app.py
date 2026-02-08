@@ -11,7 +11,6 @@ LOCATIONS = {
     "Maywood, NJ (07607)": {"lat": 40.9029, "lon": -74.0635, "tz": "America/New_York"}
 }
 
-# Map weather codes to icons
 WMO_CODES = {
     0: "☀️", 1: "🌤", 2: "⛅", 3: "☁️",
     45: "🌫", 48: "🌫", 51: "🌦", 53: "🌦",
@@ -97,11 +96,11 @@ st.line_chart(df_hourly.set_index("Time")[["Rain %"]])
 # ---------- WIND GUST COLORING ----------
 def color_wind_gusts(val):
     if val >= 40:
-        return "background-color: #ffcccc"   # strong
+        return "background-color: #ff6666"   # strong gust
     elif val >= 25:
-        return "background-color: #fff2cc"   # breezy
+        return "background-color: #ffcc80"   # moderate
     else:
-        return "background-color: #e8f5e9"   # calm
+        return "background-color: #99ff99"   # calm
 
 with st.expander("Hourly Details"):
     styled_df = df_hourly.style.applymap(
@@ -122,22 +121,22 @@ daily_df = pd.DataFrame({
     "Low (°F)": data["daily"]["temperature_2m_min"]
 })
 
-# Column-wise styling functions
+# Column-wise dark-theme-friendly styling
 def highlight_today(val):
-    return "background-color: #d0f0fd; font-weight: bold" if val == today_str else ""
+    return "background-color: #ffcc80; font-weight: bold" if val == today_str else ""
 
 def style_high(val):
     if val >= 85:
-        return "color: red; font-weight: bold"
+        return "color: #ff6666; font-weight: bold"
     elif val <= 50:
-        return "color: blue; font-weight: bold"
+        return "color: #66ffff; font-weight: bold"
     return ""
 
 def style_low(val):
     if val <= 32:
-        return "color: darkblue"
+        return "color: #3399ff; font-weight: bold"
     elif val >= 75:
-        return "color: darkred"
+        return "color: #ff9933; font-weight: bold"
     return ""
 
 styled_daily = daily_df.style.applymap(highlight_today, subset=["Date"]) \
@@ -145,6 +144,7 @@ styled_daily = daily_df.style.applymap(highlight_today, subset=["Date"]) \
                              .applymap(style_low, subset=["Low (°F)"])
 
 st.dataframe(styled_daily, use_container_width=True)
+
 
 
 
