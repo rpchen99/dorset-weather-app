@@ -4,11 +4,11 @@ import requests
 from datetime import datetime
 
 # --- CONFIG ---
-# Added Maywood, NJ with coordinates: 40.9029° N, 74.0635° W
 LOCATIONS = {
     "Dorset, VT": {"lat": "43.2548", "lon": "-73.0973", "tz": "America/New_York"},
     "Arlington, VA (22202)": {"lat": "38.8500", "lon": "-77.0400", "tz": "America/New_York"},
     "Maywood, NJ (07607)": {"lat": "40.9029", "lon": "-74.0635", "tz": "America/New_York"}
+
 }
 
 WMO_CODES = {
@@ -28,7 +28,7 @@ selected_loc_name = st.sidebar.selectbox("Select Location", list(LOCATIONS.keys(
 loc = LOCATIONS[selected_loc_name]
 
 # --- API SETUP ---
-base = "https://api.open-meteo.com"
+base = "https://api.open-meteo.com/v1/forecast"
 params = {
     "latitude": loc["lat"],
     "longitude": loc["lon"],
@@ -84,6 +84,7 @@ try:
 
 except Exception as e:
     st.error(f"Error: {e}")
+
 
 
 
