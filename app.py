@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # Apple Style Weather App - Streamlit Cloud Version
-# Enhanced styling with precipitation and wind panels
+# 24 Hour + 10 Day Forecast Edition
 
 import streamlit as st
 import requests
@@ -52,11 +52,11 @@ def fetch_weather(lat, lon, tz):
         "latitude": lat,
         "longitude": lon,
         "hourly": "temperature_2m,apparent_temperature,precipitation_probability,weathercode,windspeed_10m",
-        "daily": "temperature_2m_max,temperature_2m_min,weathercode",
+        "daily": "temperature_2m_max,temperature_2m_min,weathercode,precipitation_probability_max,windspeed_10m_max",
         "temperature_unit": "fahrenheit",
         "windspeed_unit": "mph",
         "timezone": tz,
-        "forecast_days": 7,
+        "forecast_days": 10,
     }
     try:
         r = requests.get(url, params=params, timeout=6)
@@ -82,8 +82,6 @@ index = times.index(now_hour) if now_hour in times else 0
 
 current_temp = round(raw["hourly"]["temperature_2m"][index])
 feels_like = round(raw["hourly"]["apparent_temperature"][index])
-wind_speed = round(raw["hourly"]["windspeed_10m"][index])
-precip_prob = int(raw["hourly"]["precipitation_probability"][index])
 current_code = raw["hourly"]["weathercode"][index]
 current_icon = get_icon(current_code)
 
@@ -100,11 +98,7 @@ background = (
 st.markdown(
     f"""
     <style>
-    .stApp {{
-        background: {background};
-        color: white;
-        font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-    }}
+    .stApp {{ background: {background}; color: white; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }}
     .city {{ font-size: 32px; text-align: center; margin-top: 20px; font-weight: 500; }}
     .big-icon {{ font-size: 60px; text-align: center; }}
     .big-temp {{ font-size: 100px; font-weight: 200; text-align: center; line-height: 1; margin-bottom: 10px; }}
@@ -128,62 +122,26 @@ st.markdown(
 st.markdown(f"<div class='city'>{city}</div>", unsafe_allow_html=True)
 st.markdown(f"<div class='big-icon'>{current_icon}</div>", unsafe_allow_html=True)
 st.markdown(f"<div class='big-temp'>{current_temp}°F</div>", unsafe_allow_html=True)
-st.markdown(
-    f"<div style='text-align:center; opacity:0.85;'>Feels like {feels_like}°F</div>",
-    unsafe_allow_html=True,
-)
+st.markdown(f"<div style='text-align:center; opacity:0.85;'>Feels like {feels_like}°F</div>", unsafe_allow_html=True)
 
 # -----------------------------
-# Wind + Precip Panel
+# 24 Hour Forecast
 # -----------------------------
 st.markdown("<div class='glass'>", unsafe_allow_html=True)
-col1, col2 = st.columns(2)
+st.subheader("Next 24 Hours")
 
-with col1:
-    st.markdown("### 💨 Wind")
-    st.markdown(f"<div style='font-size:28px'>{wind_speed} mph</div>", unsafe_allow_html=True)
-
-with col2:
-    st.markdown("### 🌧 Precip")
-    st.markdown(f"<div style='font-size:28px'>{precip_prob}%</div>", unsafe_allow_html=True)
-    st.progress(precip_prob)
-
-st.markdown("</div>", unsafe_allow_html=True)
-
-# -----------------------------
-# Hourly Forecast Card
-# -----------------------------
-st.markdown("<div class='glass'>", unsafe_allow_html=True)
-st.subheader("Next 4 Hours")
-
-cols = st.columns(4)
-for i in range(4):
+for i in range(24):
     time_obj = datetime.fromisoformat(raw["hourly"]["time"][i])
     label = "Now" if i == 0 else time_obj.strftime("%I %p")
     temp = round(raw["hourly"]["temperature_2m"][i])
     icon = get_icon(raw["hourly"]["weathercode"][i])
-    with cols[i]:
-        st.markdown(f"<div style='text-align:center'>{label}</div>", unsafe_allow_html=True)
-        st.markdown(f"<div style='font-size:28px; text-align:center'>{icon}</div>", unsafe_allow_html=True)
-        st.markdown(f"<div style='text-align:center'>{temp}°F</div>", unsafe_allow_html=True)
+    wind = round(raw["hourly"]["windspeed_10m"][i])
+    precip = int(raw["hourly"]["precipitation_probability"][i])
 
-st.markdown("</div>", unsafe_allow_html=True)
-
-# -----------------------------
-# 7 Day Forecast Card
-# -----------------------------
-st.markdown("<div class='glass'>", unsafe_allow_html=True)
-st.subheader("7 Day Forecast")
-
-for i, date_str in enumerate(raw["daily"]["time"]):
-    day = "Today" if i == 0 else datetime.fromisoformat(date_str).strftime("%a")
-    high = round(raw["daily"]["temperature_2m_max"][i])
-    low = round(raw["daily"]["temperature_2m_min"][i])
-    icon = get_icon(raw["daily"]["weathercode"][i])
     st.markdown(
         f"<div style='display:flex; justify-content:space-between;'>"
-        f"<span>{icon} {day}</span>"
-        f"<span>{low}°F / <b>{high}°F</b></span>"
+        f"<span>{label} {icon}</span>"
+        f"<span>{temp}°F | 💨 {wind} mph | 🌧 {precip}%</span>"
         f"</div>",
         unsafe_allow_html=True,
     )
@@ -191,11 +149,35 @@ for i, date_str in enumerate(raw["daily"]["time"]):
 st.markdown("</div>", unsafe_allow_html=True)
 
 # -----------------------------
-# Basic Validation Tests
+# 10 Day Forecast
+# -----------------------------
+st.markdown("<div class='glass'>", unsafe_allow_html=True)
+st.subheader("10 Day Forecast")
+
+for i, date_str in enumerate(raw["daily"]["time"]):
+    day = "Today" if i == 0 else datetime.fromisoformat(date_str).strftime("%a")
+    high = round(raw["daily"]["temperature_2m_max"][i])
+    low = round(raw["daily"]["temperature_2m_min"][i])
+    icon = get_icon(raw["daily"]["weathercode"][i])
+    wind = round(raw["daily"]["windspeed_10m_max"][i])
+    precip = int(raw["daily"]["precipitation_probability_max"][i])
+
+    st.markdown(
+        f"<div style='display:flex; justify-content:space-between;'>"
+        f"<span>{icon} {day}</span>"
+        f"<span>{low}°F / <b>{high}°F</b> | 💨 {wind} mph | 🌧 {precip}%</span>"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+
+st.markdown("</div>", unsafe_allow_html=True)
+
+# -----------------------------
+# Validation Tests
 # -----------------------------
 if __name__ == "__main__":
     assert get_icon(0) == "☀️"
     assert get_icon(71) == "❄️"
     assert get_icon(999) == "❔"
-    assert isinstance(precip_prob, int)
-    assert isinstance(wind_speed, int)
+    assert len(raw["hourly"]["time"]) >= 24
+    assert len(raw["daily"]["time"]) >= 7
