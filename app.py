@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # Apple Style Weather App - Streamlit Cloud Version
-# Enhanced iOS-inspired visual styling
+# Enhanced styling with precipitation and wind panels
 
 import streamlit as st
 import requests
@@ -10,7 +10,7 @@ import pytz
 # -----------------------------
 # Page Config
 # -----------------------------
-st.set_page_config(page_title="Chen Weather", layout="centered")
+st.set_page_config(page_title="Apple Style Weather", layout="centered")
 
 # -----------------------------
 # Weather Code -> Emoji Mapping
@@ -82,7 +82,8 @@ index = times.index(now_hour) if now_hour in times else 0
 
 current_temp = round(raw["hourly"]["temperature_2m"][index])
 feels_like = round(raw["hourly"]["apparent_temperature"][index])
-wind = round(raw["hourly"]["windspeed_10m"][index])
+wind_speed = round(raw["hourly"]["windspeed_10m"][index])
+precip_prob = int(raw["hourly"]["precipitation_probability"][index])
 current_code = raw["hourly"]["weathercode"][index]
 current_icon = get_icon(current_code)
 
@@ -104,23 +105,9 @@ st.markdown(
         color: white;
         font-family: -apple-system, BlinkMacSystemFont, sans-serif;
     }}
-    .city {{
-        font-size: 32px;
-        text-align: center;
-        margin-top: 20px;
-        font-weight: 500;
-    }}
-    .big-icon {{
-        font-size: 60px;
-        text-align: center;
-    }}
-    .big-temp {{
-        font-size: 100px;
-        font-weight: 200;
-        text-align: center;
-        line-height: 1;
-        margin-bottom: 10px;
-    }}
+    .city {{ font-size: 32px; text-align: center; margin-top: 20px; font-weight: 500; }}
+    .big-icon {{ font-size: 60px; text-align: center; }}
+    .big-temp {{ font-size: 100px; font-weight: 200; text-align: center; line-height: 1; margin-bottom: 10px; }}
     .glass {{
         background: rgba(255,255,255,0.15);
         backdrop-filter: blur(20px);
@@ -142,15 +129,32 @@ st.markdown(f"<div class='city'>{city}</div>", unsafe_allow_html=True)
 st.markdown(f"<div class='big-icon'>{current_icon}</div>", unsafe_allow_html=True)
 st.markdown(f"<div class='big-temp'>{current_temp}°F</div>", unsafe_allow_html=True)
 st.markdown(
-    f"<div style='text-align:center; opacity:0.8;'>Feels like {feels_like}°F · Wind {wind} mph</div>",
+    f"<div style='text-align:center; opacity:0.85;'>Feels like {feels_like}°F</div>",
     unsafe_allow_html=True,
 )
+
+# -----------------------------
+# Wind + Precip Panel
+# -----------------------------
+st.markdown("<div class='glass'>", unsafe_allow_html=True)
+col1, col2 = st.columns(2)
+
+with col1:
+    st.markdown("### 💨 Wind")
+    st.markdown(f"<div style='font-size:28px'>{wind_speed} mph</div>", unsafe_allow_html=True)
+
+with col2:
+    st.markdown("### 🌧 Precip")
+    st.markdown(f"<div style='font-size:28px'>{precip_prob}%</div>", unsafe_allow_html=True)
+    st.progress(precip_prob)
+
+st.markdown("</div>", unsafe_allow_html=True)
 
 # -----------------------------
 # Hourly Forecast Card
 # -----------------------------
 st.markdown("<div class='glass'>", unsafe_allow_html=True)
-st.subheader("Next 12 Hours")
+st.subheader("Next 4 Hours")
 
 cols = st.columns(4)
 for i in range(4):
@@ -193,3 +197,5 @@ if __name__ == "__main__":
     assert get_icon(0) == "☀️"
     assert get_icon(71) == "❄️"
     assert get_icon(999) == "❔"
+    assert isinstance(precip_prob, int)
+    assert isinstance(wind_speed, int)
