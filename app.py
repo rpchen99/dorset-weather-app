@@ -1,198 +1,204 @@
-# -*- coding: utf-8 -*-
-# Apple Style Weather App - Streamlit Cloud Safe Version
-
 import streamlit as st
+import pandas as pd
 import requests
 from datetime import datetime
 import pytz
+import altair as alt
 
-# -------------------------------------------------
-# Page Config
-# -------------------------------------------------
-st.set_page_config(page_title="Apple Style Weather", layout="centered")
+# ---------- CONFIG ----------
+LOCATIONS = {
+    "Dorset, VT": {"lat": 43.2548, "lon": -73.0973, "tz": "America/New_York"},
+    "Arlington, VA (22202)": {"lat": 38.8500, "lon": -77.0400, "tz": "America/New_York"},
+    "New York, NY (10021)": {"lat": 40.9029, "lon": -74.0635, "tz": "America/New_York"}
+}
 
-# -------------------------------------------------
-# Weather Icons
-# -------------------------------------------------
-WMO_ICONS = {
+# Base weather icons
+WMO_CODES = {
     0: "☀️", 1: "🌤", 2: "⛅", 3: "☁️",
-    45: "🌫", 48: "🌫",
-    51: "🌦", 53: "🌦", 55: "🌧",
-    61: "🌧", 63: "🌧", 65: "🌧",
+    45: "🌫", 48: "🌫", 51: "🌦", 53: "🌦",
+    55: "🌦", 61: "🌧", 63: "🌧", 65: "🌧",
     71: "❄️", 73: "❄️", 75: "❄️", 77: "❄️",
-    80: "🌦", 81: "🌧", 82: "⛈",
-    85: "❄️", 86: "❄️",
-    95: "⛈",
+    80: "🌦", 81: "🌧", 82: "⛈", 85: "❄️",
+    86: "❄️", 95: "🌩"
 }
 
-def get_icon(code):
-    return WMO_ICONS.get(code, "❔")
+st.set_page_config(page_title="Weather Dashboard", page_icon="❄️", layout="wide")
 
-# -------------------------------------------------
-# Cities (Dorset Default)
-# -------------------------------------------------
-CITIES = {
-    "Dorset": (43.2548, -73.0973, "America/New_York"),
-    "New York": (40.7128, -74.0060, "America/New_York"),
-    "Arlington": (38.8500, -77.0400, "America/New_York"),
-}
-
-city = st.selectbox("Select City", list(CITIES.keys()), index=0)
-lat, lon, tz_name = CITIES[city]
-
-# -------------------------------------------------
-# Fetch Weather
-# -------------------------------------------------
+# ---------- API CALL (CACHED) ----------
 @st.cache_data(ttl=600)
 def fetch_weather(lat, lon, tz):
     url = "https://api.open-meteo.com/v1/forecast"
     params = {
         "latitude": lat,
         "longitude": lon,
-        "hourly": "temperature_2m,apparent_temperature,weathercode",
-        "daily": "temperature_2m_max,temperature_2m_min,weathercode",
+        "hourly": (
+            "temperature_2m,"
+            "apparent_temperature,"
+            "precipitation_probability,"
+            "weathercode,"
+            "windgusts_10m"
+        ),
+        "daily": (
+            "weathercode,"
+            "temperature_2m_max,"
+            "temperature_2m_min"
+        ),
         "temperature_unit": "fahrenheit",
+        "windspeed_unit": "mph",
         "timezone": tz,
-        "forecast_days": 10,
+        "forecast_days": 10
     }
-    r = requests.get(url, params=params, timeout=6)
-    r.raise_for_status()
-    return r.json()
+    response = requests.get(url, params=params, timeout=10)
+    response.raise_for_status()
+    return response.json()
 
-raw = fetch_weather(lat, lon, tz_name)
+# ---------- ICON FUNCTION (DAY/NIGHT + RAIN) ----------
+def get_hourly_icon(code, dt, rain_prob):
+    """Return icon for weather code, using moon for night clear skies and rain icon for heavy rain."""
+    hour = dt.hour
+    if rain_prob >= 30:
+        return "🌧"
+    if code == 0:  # Clear sky
+        return "☀️" if 6 <= hour < 18 else "🌙"
+    elif code == 1:  # Mainly clear
+        return "🌤" if 6 <= hour < 18 else "🌙"
+    else:
+        return WMO_CODES.get(code, "❓")
 
-# -------------------------------------------------
-# Current Conditions
-# -------------------------------------------------
-tz = pytz.timezone(tz_name)
-now = datetime.now(tz)
-now_hour = now.strftime("%Y-%m-%dT%H:00")
-hourly_times = raw["hourly"]["time"]
+# ---------- UI ----------
+location_name = st.sidebar.selectbox("Select Location", list(LOCATIONS.keys()))
+loc = LOCATIONS[location_name]
 
-index = hourly_times.index(now_hour) if now_hour in hourly_times else 0
+try:
+    data = fetch_weather(loc["lat"], loc["lon"], loc["tz"])
+except Exception as e:
+    st.error(f"Error fetching weather: {e}")
+    st.stop()
 
-current_temp = round(raw["hourly"]["temperature_2m"][index])
-feels_like = round(raw["hourly"]["apparent_temperature"][index])
-current_icon = get_icon(raw["hourly"]["weathercode"][index])
+tz = pytz.timezone(loc["tz"])
+now_hour = datetime.now(tz).strftime("%Y-%m-%dT%H:00")
+times = data["hourly"]["time"]
+index = times.index(now_hour) if now_hour in times else 0
 
-# -------------------------------------------------
-# Background Styling
-# -------------------------------------------------
-is_day = 6 <= now.hour < 18
-background = (
-    "radial-gradient(circle at 50% 0%, #8EC5FC 0%, #4facfe 40%, #1e3c72 100%)"
-    if is_day
-    else "radial-gradient(circle at 50% 0%, #2C3E50 0%, #141E30 60%, #0f2027 100%)"
+# ---------- CURRENT CONDITIONS ----------
+temp = round(data["hourly"]["temperature_2m"][index], 1)
+feels = round(data["hourly"]["apparent_temperature"][index], 1)
+rain = round(data["hourly"]["precipitation_probability"][index], 1)
+gusts = round(data["hourly"]["windgusts_10m"][index], 1)
+dt_current = pd.to_datetime(data["hourly"]["time"][index])
+condition_icon = get_hourly_icon(data["hourly"]["weathercode"][index], dt_current, rain)
+
+st.markdown(f"# **{temp:.1f}°F**")
+st.markdown(f"### Feels like {feels:.1f}°F · {location_name}")
+st.write(f"{condition_icon} · Rain {rain:.1f}% · Gusts {gusts:.1f} mph")
+st.write(f"Updated {datetime.now(tz).strftime('%I:%M %p')}")
+st.divider()
+
+# ---------- NEXT 36 HOURS ----------
+df_hourly = pd.DataFrame({
+    "DateTime": pd.to_datetime(data["hourly"]["time"]),
+    "Temp (°F)": data["hourly"]["temperature_2m"],
+    "Feels Like (°F)": data["hourly"]["apparent_temperature"],
+    "Rain %": data["hourly"]["precipitation_probability"],
+    "Wind Gusts (mph)": data["hourly"]["windgusts_10m"],
+    "WeatherCode": data["hourly"]["weathercode"]
+}).head(36)
+
+# Round temperatures and gusts to 1 decimal place
+df_hourly["Temp (°F)"] = df_hourly["Temp (°F)"].round(1)
+df_hourly["Feels Like (°F)"] = df_hourly["Feels Like (°F)"].round(1)
+df_hourly["Wind Gusts (mph)"] = df_hourly["Wind Gusts (mph)"].round(1)
+df_hourly["Rain %"] = df_hourly["Rain %"].round(1)
+
+# Add day/night/rain aware condition icons
+df_hourly["Condition"] = [
+    get_hourly_icon(c, dt, rain) 
+    for c, dt, rain in zip(df_hourly["WeatherCode"], df_hourly["DateTime"], df_hourly["Rain %"])
+]
+
+# Day & Time column for table
+df_hourly["Day & Time"] = df_hourly["DateTime"].dt.strftime("%a %I:%M %p")
+
+# ---------- ALTAR CHART WITH ICONS ----------
+st.subheader("Next 36 Hours · Temperature with Weather Icons")
+
+line = alt.Chart(df_hourly).mark_line(point=False).encode(
+    x=alt.X('DateTime:T', title='Time'),
+    y=alt.Y('Temp (°F):Q', title='Temperature (°F)')
 )
 
-st.markdown(f"""
-<style>
-.stApp {{
-    background: {background};
-    color: white;
-    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-}}
-.glass {{
-    background: rgba(255,255,255,0.15);
-    backdrop-filter: blur(20px);
-    border-radius: 30px;
-    padding: 20px;
-    margin-top: 25px;
-    border: 1px solid rgba(255,255,255,0.2);
-}}
-.hour-scroll {{
-    display: flex;
-    overflow-x: auto;
-    gap: 20px;
-    padding-bottom: 10px;
-}}
-.hour-item {{
-    min-width: 70px;
-    text-align: center;
-}}
-</style>
-""", unsafe_allow_html=True)
+icons = alt.Chart(df_hourly).mark_text(
+    baseline='bottom',
+    fontSize=20
+).encode(
+    x='DateTime:T',
+    y='Temp (°F):Q',
+    text='Condition:N'
+)
 
-# -------------------------------------------------
-# Header
-# -------------------------------------------------
-st.markdown(f"""
-<div style="text-align:center; margin-top:20px;">
-    <div style="font-size:32px; font-weight:500;">{city}</div>
-    <div style="font-size:60px;">{current_icon}</div>
-    <div style="font-size:100px; font-weight:200;">{current_temp}°F</div>
-    <div style="opacity:0.8;">Feels like {feels_like}°F</div>
-</div>
-""", unsafe_allow_html=True)
+st.altair_chart(line + icons, use_container_width=True)
 
-# -------------------------------------------------
-# 24 Hour Forecast (Single Safe Block)
-# -------------------------------------------------
-hour_html = """
-<div class='glass'>
-<h3>Next 24 Hours</h3>
-<div class='hour-scroll'>
-"""
+# ---------- WIND GUST COLORING ----------
+def color_wind_gusts(val):
+    if val >= 40:
+        return "background-color: #ff6666"
+    elif val >= 25:
+        return "background-color: #ffcc80"
+    else:
+        return "background-color: #99ff99"
 
-for i in range(24):
-    time_obj = datetime.fromisoformat(hourly_times[i])
-    label = "Now" if i == 0 else time_obj.strftime("%I %p")
-    temp = round(raw["hourly"]["temperature_2m"][i])
-    feels = round(raw["hourly"]["apparent_temperature"][i])
-    icon = get_icon(raw["hourly"]["weathercode"][i])
+# ---------- HOURLY DETAILS TABLE ----------
+with st.expander("Hourly Details"):
+    df_hourly_table = df_hourly.copy()
+    df_hourly_table = df_hourly_table[["Day & Time", "Temp (°F)", "Feels Like (°F)", "Rain %", "Wind Gusts (mph)", "Condition"]]
+    st.dataframe(df_hourly_table.style.applymap(
+        color_wind_gusts, subset=["Wind Gusts (mph)"]
+    ).format({
+        "Temp (°F)": "{:.1f}",
+        "Feels Like (°F)": "{:.1f}",
+        "Wind Gusts (mph)": "{:.1f}",
+        "Rain %": "{:.1f}"
+    }), use_container_width=True)
 
-    hour_html += f"""
-    <div class='hour-item'>
-        <div style='font-size:12px; opacity:0.7;'>{label}</div>
-        <div style='font-size:24px'>{icon}</div>
-        <div>{temp}°F</div>
-        <div style='font-size:11px; opacity:0.6;'>FL {feels}°F</div>
-    </div>
-    """
+# ---------- 10-DAY SUMMARY ----------
+st.divider()
+st.subheader("10-Day Summary")
 
-hour_html += """
-</div>
-</div>
-"""
+today_str = datetime.now(tz).strftime("%Y-%m-%d")
+daily_df = pd.DataFrame({
+    "Date": data["daily"]["time"],
+    "Condition": [
+        get_hourly_icon(c, pd.to_datetime(d), 0)  # daily rain not included; assume 0%
+        for c, d in zip(data["daily"]["weathercode"], data["daily"]["time"])
+    ],
+    "High (°F)": [round(x, 1) for x in data["daily"]["temperature_2m_max"]],
+    "Low (°F)": [round(x, 1) for x in data["daily"]["temperature_2m_min"]]
+})
 
-st.markdown(hour_html, unsafe_allow_html=True)
+# ---------- DARK-THEME-FRIENDLY STYLING ----------
+def highlight_today(val):
+    return "background-color: #ffcc80; font-weight: bold" if val == today_str else ""
 
-# -------------------------------------------------
-# 10 Day Forecast (Single Safe Block)
-# -------------------------------------------------
-highs = raw["daily"]["temperature_2m_max"]
-lows = raw["daily"]["temperature_2m_min"]
+def style_high(val):
+    if val >= 85:
+        return "color: #ff6666; font-weight: bold"
+    elif val <= 50:
+        return "color: #66ffff; font-weight: bold"
+    return ""
 
-min_temp = min(lows)
-max_temp = max(highs)
-range_temp = max_temp - min_temp
+def style_low(val):
+    if val <= 32:
+        return "color: #3399ff; font-weight: bold"
+    elif val >= 75:
+        return "color: #ff9933; font-weight: bold"
+    return ""
 
-forecast_html = """
-<div class='glass'>
-<h3>10 Day Forecast</h3>
-"""
+styled_daily = (
+    daily_df.style
+    .applymap(highlight_today, subset=["Date"])
+    .applymap(style_high, subset=["High (°F)"])
+    .applymap(style_low, subset=["Low (°F)"])
+    .format({"High (°F)": "{:.1f}", "Low (°F)": "{:.1f}"})
+)
 
-for i, date_str in enumerate(raw["daily"]["time"]):
-    day = "Today" if i == 0 else datetime.fromisoformat(date_str).strftime("%a")
-    high = round(highs[i])
-    low = round(lows[i])
-    icon = get_icon(raw["daily"]["weathercode"][i])
-
-    low_pct = ((low - min_temp) / range_temp) * 100 if range_temp else 0
-    width_pct = ((high - low) / range_temp) * 100 if range_temp else 0
-
-    forecast_html += f"""
-    <div style='display:flex; align-items:center; justify-content:space-between; margin:8px 0;'>
-        <div style='width:70px'>{day}</div>
-        <div>{icon}</div>
-        <div style='width:35px; text-align:right; opacity:0.6'>{low}°</div>
-        <div style='flex:1; margin:0 10px; background:rgba(255,255,255,0.25); height:4px; border-radius:4px; position:relative;'>
-            <div style='position:absolute; left:{low_pct}%; width:{width_pct}%; height:4px; background:white; border-radius:4px;'></div>
-        </div>
-        <div style='width:35px; text-align:right; font-weight:500'>{high}°</div>
-    </div>
-    """
-
-forecast_html += "</div>"
-
-st.markdown(forecast_html, unsafe_allow_html=True)
+st.dataframe(styled_daily, use_container_width=True)
