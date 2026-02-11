@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # Apple Style Weather App - Streamlit Cloud Version
-# Pure Python implementation with emoji weather icons
+# Enhanced iOS-inspired visual styling
 
 import streamlit as st
 import requests
@@ -10,7 +10,7 @@ import pytz
 # -----------------------------
 # Page Config
 # -----------------------------
-st.set_page_config(page_title="Apple Style Weather", layout="centered")
+st.set_page_config(page_title="Chen Weather", layout="centered")
 
 # -----------------------------
 # Weather Code -> Emoji Mapping
@@ -87,29 +87,88 @@ current_code = raw["hourly"]["weathercode"][index]
 current_icon = get_icon(current_code)
 
 # -----------------------------
-# Header
+# Dynamic Gradient Background
 # -----------------------------
-st.title(city)
-st.markdown(f"## {current_icon}  {current_temp}°F")
-st.caption(f"Feels like {feels_like}°F | Wind {wind} mph")
+is_day = 6 <= now.hour < 18
+background = (
+    "radial-gradient(circle at 50% 0%, #8EC5FC 0%, #4facfe 40%, #1e3c72 100%)"
+    if is_day
+    else "radial-gradient(circle at 50% 0%, #2C3E50 0%, #141E30 60%, #0f2027 100%)"
+)
+
+st.markdown(
+    f"""
+    <style>
+    .stApp {{
+        background: {background};
+        color: white;
+        font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    }}
+    .city {{
+        font-size: 32px;
+        text-align: center;
+        margin-top: 20px;
+        font-weight: 500;
+    }}
+    .big-icon {{
+        font-size: 60px;
+        text-align: center;
+    }}
+    .big-temp {{
+        font-size: 100px;
+        font-weight: 200;
+        text-align: center;
+        line-height: 1;
+        margin-bottom: 10px;
+    }}
+    .glass {{
+        background: rgba(255,255,255,0.15);
+        backdrop-filter: blur(20px);
+        border-radius: 30px;
+        padding: 20px;
+        margin-top: 25px;
+        border: 1px solid rgba(255,255,255,0.2);
+        box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+    }}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 # -----------------------------
-# Hourly Forecast
+# Header Section
 # -----------------------------
-st.markdown("---")
+st.markdown(f"<div class='city'>{city}</div>", unsafe_allow_html=True)
+st.markdown(f"<div class='big-icon'>{current_icon}</div>", unsafe_allow_html=True)
+st.markdown(f"<div class='big-temp'>{current_temp}°F</div>", unsafe_allow_html=True)
+st.markdown(
+    f"<div style='text-align:center; opacity:0.8;'>Feels like {feels_like}°F · Wind {wind} mph</div>",
+    unsafe_allow_html=True,
+)
+
+# -----------------------------
+# Hourly Forecast Card
+# -----------------------------
+st.markdown("<div class='glass'>", unsafe_allow_html=True)
 st.subheader("Next 12 Hours")
 
-for i in range(12):
+cols = st.columns(4)
+for i in range(4):
     time_obj = datetime.fromisoformat(raw["hourly"]["time"][i])
     label = "Now" if i == 0 else time_obj.strftime("%I %p")
     temp = round(raw["hourly"]["temperature_2m"][i])
     icon = get_icon(raw["hourly"]["weathercode"][i])
-    st.write(f"{label}  |  {icon}  |  {temp}°F")
+    with cols[i]:
+        st.markdown(f"<div style='text-align:center'>{label}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='font-size:28px; text-align:center'>{icon}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='text-align:center'>{temp}°F</div>", unsafe_allow_html=True)
+
+st.markdown("</div>", unsafe_allow_html=True)
 
 # -----------------------------
-# 7 Day Forecast
+# 7 Day Forecast Card
 # -----------------------------
-st.markdown("---")
+st.markdown("<div class='glass'>", unsafe_allow_html=True)
 st.subheader("7 Day Forecast")
 
 for i, date_str in enumerate(raw["daily"]["time"]):
@@ -117,7 +176,15 @@ for i, date_str in enumerate(raw["daily"]["time"]):
     high = round(raw["daily"]["temperature_2m_max"][i])
     low = round(raw["daily"]["temperature_2m_min"][i])
     icon = get_icon(raw["daily"]["weathercode"][i])
-    st.write(f"{icon}  {day}  {low}°F / {high}°F")
+    st.markdown(
+        f"<div style='display:flex; justify-content:space-between;'>"
+        f"<span>{icon} {day}</span>"
+        f"<span>{low}°F / <b>{high}°F</b></span>"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+
+st.markdown("</div>", unsafe_allow_html=True)
 
 # -----------------------------
 # Basic Validation Tests
