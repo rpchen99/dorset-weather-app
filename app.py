@@ -1,218 +1,180 @@
-// Apple Style Weather App
-// React + TypeScript Version
-// --------------------------------------------------
-// FIX:
-// The canvas type is `code/react`, but the previous file
-// contained Python (Streamlit) code. That caused the
-// TypeScript compiler to attempt parsing Python,
-// producing:
-//   SyntaxError: /index.tsx: Unexpected token (1:0)
-//
-// This file is now valid React + TypeScript (TSX)
-// and will compile correctly.
+# -*- coding: utf-8 -*-
+# Apple Style Weather App - Streamlit Cloud Version
+# Pure Python (Streamlit) Implementation
 
-import React from "react";
+import streamlit as st
+import requests
+from datetime import datetime
+import pytz
 
-// -----------------------------
-// Types
-// -----------------------------
-interface HourlyData {
-  time: string;
-  temp: number;
-  feelsLike: number;
-  icon: string;
+st.set_page_config(page_title="Apple Style Weather", layout="centered")
+
+# -----------------------------
+# Weather Code -> Emoji Mapping
+# -----------------------------
+WMO_ICONS = {
+    0: "☀️", 1: "🌤", 2: "⛅", 3: "☁️",
+    45: "🌫", 48: "🌫",
+    51: "🌦", 53: "🌦", 55: "🌧",
+    61: "🌧", 63: "🌧", 65: "🌧",
+    71: "❄️", 73: "❄️", 75: "❄️", 77: "❄️",
+    80: "🌦", 81: "🌧", 82: "⛈",
+    85: "❄️", 86: "❄️",
+    95: "⛈",
 }
 
-interface DailyData {
-  day: string;
-  low: number;
-  high: number;
-  icon: string;
+def get_icon(code):
+    return WMO_ICONS.get(code, "❔")
+
+# -----------------------------
+# Cities (Dorset default)
+# -----------------------------
+CITIES = {
+    "Dorset": (43.2548, -73.0973, "America/New_York"),
+    "New York": (40.7128, -74.0060, "America/New_York"),
+    "Arlington": (38.8500, -77.0400, "America/New_York"),
 }
 
-interface WeatherData {
-  city: string;
-  currentTemp: number;
-  feelsLike: number;
-  icon: string;
-  hourly: HourlyData[];
-  daily: DailyData[];
-}
+city = st.selectbox("Select City", list(CITIES.keys()), index=0)
+lat, lon, tz_name = CITIES[city]
 
-// -----------------------------
-// Deterministic Mock Data
-// (No external fetch required)
-// -----------------------------
-const weather: WeatherData = {
-  city: "Dorset",
-  currentTemp: 72,
-  feelsLike: 70,
-  icon: "☀️",
-  hourly: Array.from({ length: 24 }).map((_, i) => ({
-    time: i === 0 ? "Now" : `${i}h`,
-    temp: 65 + (i % 8),
-    feelsLike: 64 + (i % 8),
-    icon: i % 3 === 0 ? "☀️" : i % 3 === 1 ? "⛅" : "☁️",
-  })),
-  daily: [
-    { day: "Today", low: 60, high: 75, icon: "☀️" },
-    { day: "Tue", low: 61, high: 74, icon: "🌤" },
-    { day: "Wed", low: 63, high: 78, icon: "☀️" },
-    { day: "Thu", low: 65, high: 80, icon: "⛅" },
-    { day: "Fri", low: 62, high: 77, icon: "🌧" },
-    { day: "Sat", low: 59, high: 73, icon: "☁️" },
-    { day: "Sun", low: 60, high: 76, icon: "☀️" },
-    { day: "Mon", low: 58, high: 72, icon: "🌤" },
-    { day: "Tue", low: 57, high: 70, icon: "☁️" },
-    { day: "Wed", low: 55, high: 69, icon: "🌧" },
-  ],
-};
+# -----------------------------
+# Fetch Weather
+# -----------------------------
+@st.cache_data(ttl=600)
+def fetch_weather(lat, lon, tz):
+    url = "https://api.open-meteo.com/v1/forecast"
+    params = {
+        "latitude": lat,
+        "longitude": lon,
+        "hourly": "temperature_2m,apparent_temperature,precipitation_probability,weathercode,windspeed_10m",
+        "daily": "temperature_2m_max,temperature_2m_min,weathercode",
+        "temperature_unit": "fahrenheit",
+        "windspeed_unit": "mph",
+        "timezone": tz,
+        "forecast_days": 10,
+    }
+    r = requests.get(url, params=params, timeout=6)
+    r.raise_for_status()
+    return r.json()
 
-// -----------------------------
-// Component
-// -----------------------------
-export default function AppleStyleWeather() {
-  const globalMin = Math.min(...weather.daily.map((d) => d.low));
-  const globalMax = Math.max(...weather.daily.map((d) => d.high));
-  const range = globalMax - globalMin;
+raw = fetch_weather(lat, lon, tz_name)
 
-  return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background:
-          "radial-gradient(circle at 50% 0%, #8EC5FC 0%, #4facfe 40%, #1e3c72 100%)",
-        color: "white",
-        padding: "40px 20px",
-        fontFamily:
-          "-apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif",
-      }}
-    >
-      <div style={{ maxWidth: 420, margin: "0 auto" }}>
-        {/* Header */}
-        <div style={{ textAlign: "center", marginBottom: 30 }}>
-          <div style={{ fontSize: 34, fontWeight: 500 }}>
-            {weather.city}
-          </div>
-          <div style={{ fontSize: 110, fontWeight: 200 }}>
-            {weather.currentTemp}°
-          </div>
-          <div style={{ opacity: 0.7 }}>
-            {weather.icon} Feels like {weather.feelsLike}°
-          </div>
+# -----------------------------
+# Current Conditions
+# -----------------------------
+tz = pytz.timezone(tz_name)
+now = datetime.now(tz)
+now_hour = now.strftime("%Y-%m-%dT%H:00")
+index = raw["hourly"]["time"].index(now_hour) if now_hour in raw["hourly"]["time"] else 0
+
+current_temp = round(raw["hourly"]["temperature_2m"][index])
+feels_like = round(raw["hourly"]["apparent_temperature"][index])
+current_icon = get_icon(raw["hourly"]["weathercode"][index])
+
+# -----------------------------
+# Styling
+# -----------------------------
+is_day = 6 <= now.hour < 18
+background = (
+    "radial-gradient(circle at 50% 0%, #8EC5FC 0%, #4facfe 40%, #1e3c72 100%)"
+    if is_day
+    else "radial-gradient(circle at 50% 0%, #2C3E50 0%, #141E30 60%, #0f2027 100%)"
+)
+
+st.markdown(f"""
+<style>
+.stApp {{ background: {background}; color: white; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }}
+.city {{ font-size: 32px; text-align: center; margin-top: 20px; font-weight: 500; }}
+.big-icon {{ font-size: 60px; text-align: center; }}
+.big-temp {{ font-size: 100px; font-weight: 200; text-align: center; }}
+.glass {{
+    background: rgba(255,255,255,0.15);
+    backdrop-filter: blur(20px);
+    border-radius: 30px;
+    padding: 20px;
+    margin-top: 25px;
+    border: 1px solid rgba(255,255,255,0.2);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+}}
+.hour-scroll {{ display:flex; overflow-x:auto; gap:20px; padding-bottom:10px; }}
+.hour-item {{ min-width:70px; text-align:center; }}
+</style>
+""", unsafe_allow_html=True)
+
+# -----------------------------
+# Header
+# -----------------------------
+st.markdown(f"<div class='city'>{city}</div>", unsafe_allow_html=True)
+st.markdown(f"<div class='big-icon'>{current_icon}</div>", unsafe_allow_html=True)
+st.markdown(f"<div class='big-temp'>{current_temp}°F</div>", unsafe_allow_html=True)
+st.markdown(f"<div style='text-align:center; opacity:0.8;'>Feels like {feels_like}°F</div>", unsafe_allow_html=True)
+
+# -----------------------------
+# 24 Hour Horizontal Scroll
+# -----------------------------
+st.markdown("<div class='glass'>", unsafe_allow_html=True)
+st.subheader("Next 24 Hours")
+
+hour_html = "<div class='hour-scroll'>"
+for i in range(24):
+    time_obj = datetime.fromisoformat(raw["hourly"]["time"][i])
+    label = "Now" if i == 0 else time_obj.strftime("%I %p")
+    temp = round(raw["hourly"]["temperature_2m"][i])
+    feels = round(raw["hourly"]["apparent_temperature"][i])
+    icon = get_icon(raw["hourly"]["weathercode"][i])
+    hour_html += f"""
+    <div class='hour-item'>
+        <div style='font-size:12px; opacity:0.7;'>{label}</div>
+        <div style='font-size:24px'>{icon}</div>
+        <div>{temp}°F</div>
+        <div style='font-size:11px; opacity:0.6;'>FL {feels}°F</div>
+    </div>
+    """
+hour_html += "</div>"
+st.markdown(hour_html, unsafe_allow_html=True)
+st.markdown("</div>", unsafe_allow_html=True)
+
+# -----------------------------
+# 10 Day Forecast with Range Bars
+# -----------------------------
+st.markdown("<div class='glass'>", unsafe_allow_html=True)
+st.subheader("10 Day Forecast")
+
+highs = raw["daily"]["temperature_2m_max"]
+lows = raw["daily"]["temperature_2m_min"]
+min_temp = min(lows)
+max_temp = max(highs)
+range_temp = max_temp - min_temp
+
+for i, date_str in enumerate(raw["daily"]["time"]):
+    day = "Today" if i == 0 else datetime.fromisoformat(date_str).strftime("%a")
+    high = round(highs[i])
+    low = round(lows[i])
+    icon = get_icon(raw["daily"]["weathercode"][i])
+
+    low_pct = ((low - min_temp) / range_temp) * 100 if range_temp else 0
+    width_pct = ((high - low) / range_temp) * 100 if range_temp else 0
+
+    st.markdown(f"""
+    <div style='display:flex; align-items:center; justify-content:space-between;'>
+        <div style='width:70px'>{day}</div>
+        <div>{icon}</div>
+        <div style='width:35px; text-align:right; opacity:0.6'>{low}°</div>
+        <div style='flex:1; margin:0 10px; background:rgba(255,255,255,0.25); height:4px; border-radius:4px; position:relative;'>
+            <div style='position:absolute; left:{low_pct}%; width:{width_pct}%; height:4px; background:white; border-radius:4px;'></div>
         </div>
-
-        {/* 24 Hour Horizontal Scroll */}
-        <GlassCard>
-          <div
-            style={{
-              display: "flex",
-              overflowX: "auto",
-              gap: 20,
-              paddingBottom: 10,
-            }}
-          >
-            {weather.hourly.map((h, i) => (
-              <div
-                key={i}
-                style={{ minWidth: 70, textAlign: "center" }}
-              >
-                <div style={{ fontSize: 12, opacity: 0.7 }}>
-                  {h.time}
-                </div>
-                <div style={{ fontSize: 24 }}>{h.icon}</div>
-                <div>{h.temp}°</div>
-                <div style={{ fontSize: 11, opacity: 0.6 }}>
-                  FL {h.feelsLike}°
-                </div>
-              </div>
-            ))}
-          </div>
-        </GlassCard>
-
-        {/* 10 Day Forecast with Range Bars */}
-        <GlassCard>
-          {weather.daily.map((d, i) => {
-            const lowPct = ((d.low - globalMin) / range) * 100;
-            const widthPct = ((d.high - d.low) / range) * 100;
-
-            return (
-              <div
-                key={i}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "10px 0",
-                }}
-              >
-                <div style={{ width: 70 }}>{d.day}</div>
-                <div>{d.icon}</div>
-                <div style={{ width: 35, textAlign: "right", opacity: 0.6 }}>
-                  {d.low}°
-                </div>
-                <div
-                  style={{
-                    flex: 1,
-                    margin: "0 10px",
-                    height: 4,
-                    background: "rgba(255,255,255,0.25)",
-                    borderRadius: 4,
-                    position: "relative",
-                  }}
-                >
-                  <div
-                    style={{
-                      position: "absolute",
-                      left: `${lowPct}%`,
-                      width: `${widthPct}%`,
-                      height: 4,
-                      background: "white",
-                      borderRadius: 4,
-                    }}
-                  />
-                </div>
-                <div style={{ width: 35, textAlign: "right", fontWeight: 500 }}>
-                  {d.high}°
-                </div>
-              </div>
-            );
-          })}
-        </GlassCard>
-      </div>
+        <div style='width:35px; text-align:right; font-weight:500'>{high}°</div>
     </div>
-  );
-}
+    """, unsafe_allow_html=True)
 
-// -----------------------------
-// Glass Card Component
-// -----------------------------
-function GlassCard({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      style={{
-        background: "rgba(255,255,255,0.15)",
-        backdropFilter: "blur(20px)",
-        WebkitBackdropFilter: "blur(20px)",
-        borderRadius: 30,
-        padding: 20,
-        marginBottom: 25,
-        border: "1px solid rgba(255,255,255,0.2)",
-        boxShadow: "0 8px 32px rgba(0,0,0,0.25)",
-      }}
-    >
-      {children}
-    </div>
-  );
-}
+st.markdown("</div>", unsafe_allow_html=True)
 
-// -----------------------------
-// Basic Runtime Tests
-// -----------------------------
-if (process.env.NODE_ENV === "test") {
-  console.assert(weather.city === "Dorset", "Default city mismatch");
-  console.assert(weather.hourly.length === 24, "Hourly length invalid");
-  console.assert(weather.daily.length === 10, "Daily length invalid");
-  console.assert(weather.daily[0].high >= weather.daily[0].low, "High/Low invalid");
-}
+# -----------------------------
+# Basic Validation Tests
+# -----------------------------
+if __name__ == "__main__":
+    assert get_icon(0) == "☀️"
+    assert len(raw["hourly"]["time"]) >= 24
+    assert len(raw["daily"]["time"]) >= 10
 
