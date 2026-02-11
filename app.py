@@ -9,7 +9,7 @@ import altair as alt
 LOCATIONS = {
     "Dorset, VT": {"lat": 43.2548, "lon": -73.0973, "tz": "America/New_York"},
     "Arlington, VA (22202)": {"lat": 38.8500, "lon": -77.0400, "tz": "America/New_York"},
-    "Maywood, NJ (07607)": {"lat": 40.9029, "lon": -74.0635, "tz": "America/New_York"}
+    "New York, NY (10021)": {"lat": 40.9029, "lon": -74.0635, "tz": "America/New_York"}
 }
 
 # Base weather icons
