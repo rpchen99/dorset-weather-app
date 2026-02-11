@@ -1,164 +1,148 @@
-// Apple Style Weather App - React Version
-// --------------------------------------------------
-// FIX:
-// The canvas type is `code/react`, but the previous content
-// was Python (Streamlit). That caused the build system to
-// attempt parsing Python as TSX, resulting in:
-//   SyntaxError: /index.tsx: Unexpected token (1:0)
-//
-// This file is now valid React + TypeScript (TSX)
-// and will compile correctly in a React / Next.js environment.
+# -*- coding: utf-8 -*-
+# Apple Style Weather App - Streamlit Cloud Version
+# Pure Python implementation (NO React / NO TypeScript)
+# All characters are ASCII-safe to avoid encoding errors
 
-import React from "react";
+import streamlit as st
+import requests
+from datetime import datetime
+import pytz
 
-// -----------------------------
-// Types
-// -----------------------------
-interface Hourly {
-  time: string;
-  temp: number;
-  icon: string;
+# -----------------------------
+# Page Config
+# -----------------------------
+st.set_page_config(page_title="Apple Style Weather", layout="centered")
+
+# -----------------------------
+# Weather Code -> Text Icon Mapping (ASCII Safe)
+# -----------------------------
+WMO_ICONS = {
+    0: "SUN",
+    1: "PARTLY",
+    2: "PARTLY",
+    3: "CLOUD",
+    45: "FOG",
+    48: "FOG",
+    51: "DRIZZLE",
+    53: "DRIZZLE",
+    55: "RAIN",
+    61: "RAIN",
+    63: "RAIN",
+    65: "RAIN",
+    71: "SNOW",
+    73: "SNOW",
+    75: "SNOW",
+    77: "SNOW",
+    80: "RAIN",
+    81: "RAIN",
+    82: "STORM",
+    85: "SNOW",
+    86: "SNOW",
+    95: "STORM",
 }
 
-interface Daily {
-  day: string;
-  high: number;
-  low: number;
-  icon: string;
+def get_icon(code):
+    return WMO_ICONS.get(code, "UNKNOWN")
+
+# -----------------------------
+# City Selection (Dorset default)
+# -----------------------------
+CITIES = {
+    "Dorset": (43.2548, -73.0973, "America/New_York"),
+    "New York": (40.7128, -74.0060, "America/New_York"),
+    "Arlington": (38.8500, -77.0400, "America/New_York"),
 }
 
-interface WeatherData {
-  city: string;
-  current: number;
-  feelsLike: number;
-  wind: number;
-  hourly: Hourly[];
-  daily: Daily[];
-}
+city_names = list(CITIES.keys())
+city = st.selectbox("Select City", city_names, index=0)
+lat, lon, tz_name = CITIES[city]
 
-// -----------------------------
-// Deterministic Mock Data
-// (No external fetch required)
-// -----------------------------
-const weather: WeatherData = {
-  city: "Dorset",
-  current: 72,
-  feelsLike: 70,
-  wind: 8,
-  hourly: [
-    { time: "Now", temp: 72, icon: "☀️" },
-    { time: "1 PM", temp: 73, icon: "🌤" },
-    { time: "2 PM", temp: 74, icon: "🌤" },
-    { time: "3 PM", temp: 75, icon: "☀️" },
-    { time: "4 PM", temp: 74, icon: "⛅" },
-    { time: "5 PM", temp: 72, icon: "☁️" },
-  ],
-  daily: [
-    { day: "Today", high: 75, low: 60, icon: "☀️" },
-    { day: "Tue", high: 74, low: 61, icon: "🌤" },
-    { day: "Wed", high: 78, low: 63, icon: "☀️" },
-    { day: "Thu", high: 80, low: 65, icon: "⛅" },
-    { day: "Fri", high: 77, low: 62, icon: "🌧" },
-    { day: "Sat", high: 73, low: 59, icon: "☁️" },
-    { day: "Sun", high: 76, low: 60, icon: "☀️" },
-  ],
-};
+# -----------------------------
+# Cached Weather Fetch
+# -----------------------------
+@st.cache_data(ttl=600)
+def fetch_weather(lat, lon, tz):
+    url = "https://api.open-meteo.com/v1/forecast"
+    params = {
+        "latitude": lat,
+        "longitude": lon,
+        "hourly": "temperature_2m,apparent_temperature,precipitation_probability,weathercode,windspeed_10m",
+        "daily": "temperature_2m_max,temperature_2m_min,weathercode",
+        "temperature_unit": "fahrenheit",
+        "windspeed_unit": "mph",
+        "timezone": tz,
+        "forecast_days": 7,
+    }
+    try:
+        r = requests.get(url, params=params, timeout=6)
+        r.raise_for_status()
+        return r.json()
+    except Exception:
+        return None
 
-// -----------------------------
-// Component
-// -----------------------------
-export default function AppleStyleWeather() {
-  return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background:
-          "radial-gradient(circle at 50% 0%, #89CFF0 0%, #4facfe 40%, #1e3c72 100%)",
-        color: "white",
-        padding: "40px 20px",
-        fontFamily:
-          "-apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif",
-      }}
-    >
-      <div style={{ maxWidth: 420, margin: "0 auto" }}>
-        {/* Header */}
-        <div style={{ textAlign: "center", marginBottom: 30 }}>
-          <div style={{ fontSize: 34, fontWeight: 500 }}>
-            {weather.city}
-          </div>
-          <div style={{ fontSize: 110, fontWeight: 200, lineHeight: 1 }}>
-            {weather.current}°
-          </div>
-          <div style={{ opacity: 0.7 }}>
-            Feels like {weather.feelsLike}° · Wind {weather.wind} mph
-          </div>
-        </div>
+raw = fetch_weather(lat, lon, tz_name)
 
-        {/* Hourly */}
-        <GlassCard>
-          <div style={{ display: "flex", gap: 20, overflowX: "auto" }}>
-            {weather.hourly.map((h, i) => (
-              <div key={i} style={{ textAlign: "center", minWidth: 60 }}>
-                <div style={{ fontSize: 13, opacity: 0.7 }}>{h.time}</div>
-                <div style={{ fontSize: 24 }}>{h.icon}</div>
-                <div style={{ fontWeight: 500 }}>{h.temp}°</div>
-              </div>
-            ))}
-          </div>
-        </GlassCard>
+if raw is None:
+    st.error("Unable to fetch live weather data.")
+    st.stop()
 
-        {/* 7 Day */}
-        <GlassCard>
-          {weather.daily.map((d, i) => (
-            <div
-              key={i}
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                padding: "10px 0",
-              }}
-            >
-              <span>{d.icon} {d.day}</span>
-              <span>
-                {d.low}° / <strong>{d.high}°</strong>
-              </span>
-            </div>
-          ))}
-        </GlassCard>
-      </div>
-    </div>
-  );
-}
+# -----------------------------
+# Current Conditions
+# -----------------------------
+tz = pytz.timezone(tz_name)
+now = datetime.now(tz)
+now_hour = now.strftime("%Y-%m-%dT%H:00")
+times = raw["hourly"]["time"]
+index = times.index(now_hour) if now_hour in times else 0
 
-// -----------------------------
-// Glass Card Component
-// -----------------------------
-function GlassCard({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      style={{
-        background: "rgba(255,255,255,0.12)",
-        backdropFilter: "blur(25px)",
-        WebkitBackdropFilter: "blur(25px)",
-        borderRadius: 32,
-        padding: 20,
-        marginBottom: 20,
-        border: "1px solid rgba(255,255,255,0.15)",
-      }}
-    >
-      {children}
-    </div>
-  );
-}
+current_temp = round(raw["hourly"]["temperature_2m"][index])
+feels_like = round(raw["hourly"]["apparent_temperature"][index])
+wind = round(raw["hourly"]["windspeed_10m"][index])
+current_code = raw["hourly"]["weathercode"][index]
+current_icon = get_icon(current_code)
 
-// -----------------------------
-// Basic Runtime Tests
-// -----------------------------
-if (process.env.NODE_ENV === "test") {
-  console.assert(weather.city === "Dorset", "Default city mismatch");
-  console.assert(weather.hourly.length > 0, "Hourly data missing");
-  console.assert(weather.daily.length === 7, "Daily forecast length invalid");
-}
+# -----------------------------
+# Header
+# -----------------------------
+st.title(city)
+st.subheader(current_icon)
+st.markdown("## " + str(current_temp) + " F")
+st.caption("Feels like " + str(feels_like) + " F | Wind " + str(wind) + " mph")
+
+# -----------------------------
+# Hourly Forecast
+# -----------------------------
+st.markdown("---")
+st.subheader("Next 12 Hours")
+
+for i in range(12):
+    time_obj = datetime.fromisoformat(raw["hourly"]["time"][i])
+    label = "Now" if i == 0 else time_obj.strftime("%I %p")
+    temp = round(raw["hourly"]["temperature_2m"][i])
+    icon = get_icon(raw["hourly"]["weathercode"][i])
+    st.write(label + "  |  " + icon + "  |  " + str(temp) + " F")
+
+# -----------------------------
+# 7 Day Forecast
+# -----------------------------
+st.markdown("---")
+st.subheader("7 Day Forecast")
+
+for i, date_str in enumerate(raw["daily"]["time"]):
+    day = "Today" if i == 0 else datetime.fromisoformat(date_str).strftime("%a")
+    high = round(raw["daily"]["temperature_2m_max"][i])
+    low = round(raw["daily"]["temperature_2m_min"][i])
+    icon = get_icon(raw["daily"]["weathercode"][i])
+    st.write(icon + "  " + day + "  " + str(low) + " F / " + str(high) + " F")
+
+# -----------------------------
+# Basic Validation Tests
+# -----------------------------
+if __name__ == "__main__":
+    assert get_icon(0) == "SUN"
+    assert get_icon(71) == "SNOW"
+    assert get_icon(999) == "UNKNOWN"
+
 
 
 
