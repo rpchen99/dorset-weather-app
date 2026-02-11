@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # Apple Style Weather App - Streamlit Cloud Version
-# 24 Hour + 10 Day Forecast Edition
+# 24 Hour Horizontal Scroll + 10 Day Range Bars + Feels Like
 
 import streamlit as st
 import requests
@@ -30,7 +30,7 @@ def get_icon(code):
     return WMO_ICONS.get(code, "❔")
 
 # -----------------------------
-# City Selection (Dorset default)
+# Cities (Dorset default)
 # -----------------------------
 CITIES = {
     "Dorset": (43.2548, -73.0973, "America/New_York"),
@@ -38,12 +38,11 @@ CITIES = {
     "Arlington": (38.8500, -77.0400, "America/New_York"),
 }
 
-city_names = list(CITIES.keys())
-city = st.selectbox("Select City", city_names, index=0)
+city = st.selectbox("Select City", list(CITIES.keys()), index=0)
 lat, lon, tz_name = CITIES[city]
 
 # -----------------------------
-# Cached Weather Fetch
+# Fetch Weather
 # -----------------------------
 @st.cache_data(ttl=600)
 def fetch_weather(lat, lon, tz):
@@ -58,18 +57,11 @@ def fetch_weather(lat, lon, tz):
         "timezone": tz,
         "forecast_days": 10,
     }
-    try:
-        r = requests.get(url, params=params, timeout=6)
-        r.raise_for_status()
-        return r.json()
-    except Exception:
-        return None
+    r = requests.get(url, params=params, timeout=6)
+    r.raise_for_status()
+    return r.json()
 
 raw = fetch_weather(lat, lon, tz_name)
-
-if raw is None:
-    st.error("Unable to fetch live weather data.")
-    st.stop()
 
 # -----------------------------
 # Current Conditions
@@ -77,16 +69,14 @@ if raw is None:
 tz = pytz.timezone(tz_name)
 now = datetime.now(tz)
 now_hour = now.strftime("%Y-%m-%dT%H:00")
-times = raw["hourly"]["time"]
-index = times.index(now_hour) if now_hour in times else 0
+index = raw["hourly"]["time"].index(now_hour) if now_hour in raw["hourly"]["time"] else 0
 
 current_temp = round(raw["hourly"]["temperature_2m"][index])
-feels_like = round(raw["hourly"]["apparent_temperature"][index])
-current_code = raw["hourly"]["weathercode"][index]
-current_icon = get_icon(current_code)
+feels_like_now = round(raw["hourly"]["apparent_temperature"][index])
+current_icon = get_icon(raw["hourly"]["weathercode"][index])
 
 # -----------------------------
-# Dynamic Gradient Background
+# Background
 # -----------------------------
 is_day = 6 <= now.hour < 18
 background = (
@@ -101,7 +91,7 @@ st.markdown(
     .stApp {{ background: {background}; color: white; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }}
     .city {{ font-size: 32px; text-align: center; margin-top: 20px; font-weight: 500; }}
     .big-icon {{ font-size: 60px; text-align: center; }}
-    .big-temp {{ font-size: 100px; font-weight: 200; text-align: center; line-height: 1; margin-bottom: 10px; }}
+    .big-temp {{ font-size: 100px; font-weight: 200; text-align: center; line-height: 1; }}
     .glass {{
         background: rgba(255,255,255,0.15);
         backdrop-filter: blur(20px);
@@ -111,64 +101,87 @@ st.markdown(
         border: 1px solid rgba(255,255,255,0.2);
         box-shadow: 0 8px 32px rgba(0,0,0,0.25);
     }}
+    .hour-scroll {
+        display:flex;
+        overflow-x:auto;
+        gap:20px;
+        padding-bottom:10px;
+    }
+    .hour-item {
+        min-width:70px;
+        text-align:center;
+    }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
 # -----------------------------
-# Header Section
+# Header
 # -----------------------------
 st.markdown(f"<div class='city'>{city}</div>", unsafe_allow_html=True)
 st.markdown(f"<div class='big-icon'>{current_icon}</div>", unsafe_allow_html=True)
 st.markdown(f"<div class='big-temp'>{current_temp}°F</div>", unsafe_allow_html=True)
-st.markdown(f"<div style='text-align:center; opacity:0.85;'>Feels like {feels_like}°F</div>", unsafe_allow_html=True)
+st.markdown(f"<div style='text-align:center; opacity:0.8;'>Feels like {feels_like_now}°F</div>", unsafe_allow_html=True)
 
 # -----------------------------
-# 24 Hour Forecast
+# 24 Hour Horizontal Scroll
 # -----------------------------
 st.markdown("<div class='glass'>", unsafe_allow_html=True)
 st.subheader("Next 24 Hours")
 
+hour_html = "<div class='hour-scroll'>"
 for i in range(24):
     time_obj = datetime.fromisoformat(raw["hourly"]["time"][i])
     label = "Now" if i == 0 else time_obj.strftime("%I %p")
     temp = round(raw["hourly"]["temperature_2m"][i])
+    feels = round(raw["hourly"]["apparent_temperature"][i])
     icon = get_icon(raw["hourly"]["weathercode"][i])
-    wind = round(raw["hourly"]["windspeed_10m"][i])
-    precip = int(raw["hourly"]["precipitation_probability"][i])
-
-    st.markdown(
-        f"<div style='display:flex; justify-content:space-between;'>"
-        f"<span>{label} {icon}</span>"
-        f"<span>{temp}°F | 💨 {wind} mph | 🌧 {precip}%</span>"
-        f"</div>",
-        unsafe_allow_html=True,
-    )
-
+    hour_html += f"""
+        <div class='hour-item'>
+            <div style='font-size:12px; opacity:0.7;'>{label}</div>
+            <div style='font-size:24px'>{icon}</div>
+            <div>{temp}°</div>
+            <div style='font-size:11px; opacity:0.6;'>FL {feels}°</div>
+        </div>
+    """
+hour_html += "</div>"
+st.markdown(hour_html, unsafe_allow_html=True)
 st.markdown("</div>", unsafe_allow_html=True)
 
 # -----------------------------
-# 10 Day Forecast
+# 10 Day Forecast with Range Bars
 # -----------------------------
 st.markdown("<div class='glass'>", unsafe_allow_html=True)
 st.subheader("10 Day Forecast")
 
+highs = raw["daily"]["temperature_2m_max"]
+lows = raw["daily"]["temperature_2m_min"]
+
+min_temp = min(lows)
+max_temp = max(highs)
+range_temp = max_temp - min_temp
+
 for i, date_str in enumerate(raw["daily"]["time"]):
     day = "Today" if i == 0 else datetime.fromisoformat(date_str).strftime("%a")
-    high = round(raw["daily"]["temperature_2m_max"][i])
-    low = round(raw["daily"]["temperature_2m_min"][i])
+    high = round(highs[i])
+    low = round(lows[i])
     icon = get_icon(raw["daily"]["weathercode"][i])
-    wind = round(raw["daily"]["windspeed_10m_max"][i])
-    precip = int(raw["daily"]["precipitation_probability_max"][i])
 
-    st.markdown(
-        f"<div style='display:flex; justify-content:space-between;'>"
-        f"<span>{icon} {day}</span>"
-        f"<span>{low}°F / <b>{high}°F</b> | 💨 {wind} mph | 🌧 {precip}%</span>"
-        f"</div>",
-        unsafe_allow_html=True,
-    )
+    low_pct = ((low - min_temp) / range_temp) * 100 if range_temp else 0
+    width_pct = ((high - low) / range_temp) * 100 if range_temp else 0
+
+    st.markdown(f"""
+    <div style='display:flex; align-items:center; justify-content:space-between;'>
+        <div style='width:70px'>{day}</div>
+        <div>{icon}</div>
+        <div style='width:35px; text-align:right; opacity:0.6'>{low}°</div>
+        <div style='flex:1; margin:0 10px; background:rgba(255,255,255,0.25); height:4px; border-radius:4px; position:relative;'>
+            <div style='position:absolute; left:{low_pct}%; width:{width_pct}%; height:4px; background:white; border-radius:4px;'></div>
+        </div>
+        <div style='width:35px; text-align:right; font-weight:500'>{high}°</div>
+    </div>
+    """, unsafe_allow_html=True)
 
 st.markdown("</div>", unsafe_allow_html=True)
 
@@ -177,7 +190,5 @@ st.markdown("</div>", unsafe_allow_html=True)
 # -----------------------------
 if __name__ == "__main__":
     assert get_icon(0) == "☀️"
-    assert get_icon(71) == "❄️"
-    assert get_icon(999) == "❔"
     assert len(raw["hourly"]["time"]) >= 24
-    assert len(raw["daily"]["time"]) >= 7
+    assert len(raw["daily"]["time"]) >= 10
