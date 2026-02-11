@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Apple Style Weather App - Streamlit Cloud Version
+# Apple Style Weather App - Streamlit Cloud Safe Version
 
 import streamlit as st
 import requests
@@ -92,21 +92,6 @@ st.markdown(f"""
     color: white;
     font-family: -apple-system, BlinkMacSystemFont, sans-serif;
 }}
-.city {{
-    font-size: 32px;
-    text-align: center;
-    margin-top: 20px;
-    font-weight: 500;
-}}
-.big-icon {{
-    font-size: 60px;
-    text-align: center;
-}}
-.big-temp {{
-    font-size: 100px;
-    font-weight: 200;
-    text-align: center;
-}}
 .glass {{
     background: rgba(255,255,255,0.15);
     backdrop-filter: blur(20px);
@@ -131,21 +116,23 @@ st.markdown(f"""
 # -------------------------------------------------
 # Header
 # -------------------------------------------------
-st.markdown(f"<div class='city'>{city}</div>", unsafe_allow_html=True)
-st.markdown(f"<div class='big-icon'>{current_icon}</div>", unsafe_allow_html=True)
-st.markdown(f"<div class='big-temp'>{current_temp}°F</div>", unsafe_allow_html=True)
-st.markdown(
-    f"<div style='text-align:center; opacity:0.8;'>Feels like {feels_like}°F</div>",
-    unsafe_allow_html=True
-)
+st.markdown(f"""
+<div style="text-align:center; margin-top:20px;">
+    <div style="font-size:32px; font-weight:500;">{city}</div>
+    <div style="font-size:60px;">{current_icon}</div>
+    <div style="font-size:100px; font-weight:200;">{current_temp}°F</div>
+    <div style="opacity:0.8;">Feels like {feels_like}°F</div>
+</div>
+""", unsafe_allow_html=True)
 
 # -------------------------------------------------
-# 24 Hour Horizontal Scroll
+# 24 Hour Forecast (Single Safe Block)
 # -------------------------------------------------
-st.markdown("<div class='glass'>", unsafe_allow_html=True)
-st.subheader("Next 24 Hours")
-
-hour_html = "<div class='hour-scroll'>"
+hour_html = """
+<div class='glass'>
+<h3>Next 24 Hours</h3>
+<div class='hour-scroll'>
+"""
 
 for i in range(24):
     time_obj = datetime.fromisoformat(hourly_times[i])
@@ -163,25 +150,27 @@ for i in range(24):
     </div>
     """
 
-hour_html += "</div>"
+hour_html += """
+</div>
+</div>
+"""
 
-# 🔥 THIS LINE FIXES THE LITERAL HTML ISSUE
 st.markdown(hour_html, unsafe_allow_html=True)
 
-st.markdown("</div>", unsafe_allow_html=True)
-
 # -------------------------------------------------
-# 10 Day Forecast with Range Bars
+# 10 Day Forecast (Single Safe Block)
 # -------------------------------------------------
-st.markdown("<div class='glass'>", unsafe_allow_html=True)
-st.subheader("10 Day Forecast")
-
 highs = raw["daily"]["temperature_2m_max"]
 lows = raw["daily"]["temperature_2m_min"]
 
 min_temp = min(lows)
 max_temp = max(highs)
 range_temp = max_temp - min_temp
+
+forecast_html = """
+<div class='glass'>
+<h3>10 Day Forecast</h3>
+"""
 
 for i, date_str in enumerate(raw["daily"]["time"]):
     day = "Today" if i == 0 else datetime.fromisoformat(date_str).strftime("%a")
@@ -192,7 +181,7 @@ for i, date_str in enumerate(raw["daily"]["time"]):
     low_pct = ((low - min_temp) / range_temp) * 100 if range_temp else 0
     width_pct = ((high - low) / range_temp) * 100 if range_temp else 0
 
-    st.markdown(f"""
+    forecast_html += f"""
     <div style='display:flex; align-items:center; justify-content:space-between; margin:8px 0;'>
         <div style='width:70px'>{day}</div>
         <div>{icon}</div>
@@ -202,6 +191,8 @@ for i, date_str in enumerate(raw["daily"]["time"]):
         </div>
         <div style='width:35px; text-align:right; font-weight:500'>{high}°</div>
     </div>
-    """, unsafe_allow_html=True)
+    """
 
-st.markdown("</div>", unsafe_allow_html=True)
+forecast_html += "</div>"
+
+st.markdown(forecast_html, unsafe_allow_html=True)
