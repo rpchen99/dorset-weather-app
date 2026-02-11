@@ -145,9 +145,10 @@ st.markdown(
 st.markdown("<div class='glass'>", unsafe_allow_html=True)
 st.subheader("Next 24 Hours")
 
-hour_html = "<div class='hour-scroll'>"
-...
-st.write(hour_html)
+hour_html += "</div>"
+
+st.markdown(hour_html, unsafe_allow_html=True)
+
 
 for i in range(24):
     time_obj = datetime.fromisoformat(hourly_times[i])
