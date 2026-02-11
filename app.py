@@ -145,10 +145,7 @@ st.markdown(
 st.markdown("<div class='glass'>", unsafe_allow_html=True)
 st.subheader("Next 24 Hours")
 
-hour_html += "</div>"
-
-st.markdown(hour_html, unsafe_allow_html=True)
-
+hour_html = "<div class='hour-scroll'>"
 
 for i in range(24):
     time_obj = datetime.fromisoformat(hourly_times[i])
@@ -168,7 +165,7 @@ for i in range(24):
 
 hour_html += "</div>"
 
-# ✅ THIS IS THE IMPORTANT LINE
+# 🔥 THIS LINE FIXES THE LITERAL HTML ISSUE
 st.markdown(hour_html, unsafe_allow_html=True)
 
 st.markdown("</div>", unsafe_allow_html=True)
